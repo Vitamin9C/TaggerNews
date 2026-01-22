@@ -1,0 +1,40 @@
+<article class="story-card">
+    <div class="story-score">
+        <span class="score-value">{{ story.score }}</span>
+        <span class="score-label">pts</span>
+    </div>
+    <div class="story-content">
+        <h3 class="story-title">
+            {% if story.url %}
+            <a href="{{ story.url }}" target="_blank" rel="noopener">{{ story.title }}</a>
+            {% else %}
+            <span>{{ story.title }}</span>
+            {% endif %}
+        </h3>
+        <div class="story-meta">
+            <span class="author">by {{ story.author }}</span>
+            <span class="separator">•</span>
+            <span class="comments">{{ story.comment_count }} comments</span>
+            <span class="separator">•</span>
+            <a href="https://news.ycombinator.com/item?id={{ story.hn_id }}" target="_blank" class="hn-link">HN</a>
+        </div>
+        {% if story.tags %}
+        <div class="story-tags">
+            {% for tag in story.tags %}
+            <a href="/?tag={{ tag.name }}" class="tag-pill{% if active_tag == tag.name %} active{% endif %}"
+                hx-get="/stories/filter?tag={{ tag.name }}" hx-target="#story-list" hx-swap="innerHTML"
+                hx-push-url="/?tag={{ tag.name }}">{{ tag.name }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if story.summary %}
+        <details class="story-summary">
+            <summary class="summary-toggle">
+                <span class="summary-icon">🤖</span>
+                <span>AI Summary</span>
+            </summary>
+            <p class="summary-text">{{ story.summary.text }}</p>
+        </details>
+        {% endif %}
+    </div>
+</article>

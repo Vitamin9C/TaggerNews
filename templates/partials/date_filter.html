@@ -1,0 +1,45 @@
+<div class="date-filter">
+    <h3 class="filter-title">📅 Period</h3>
+    <div class="period-buttons" hx-sync="closest .date-filter:abort">
+        <button class="period-btn{% if active_period == 'all' %} active{% endif %}"
+            hx-get="/stories/filter{% if active_tag %}?tag={{ active_tag }}{% endif %}" hx-target="#story-list"
+            hx-swap="innerHTML" hx-indicator=".loading-indicator">
+            All
+        </button>
+        <button class="period-btn{% if active_period == 'today' %} active{% endif %}"
+            hx-get="/stories/filter?period=today{% if active_tag %}&tag={{ active_tag }}{% endif %}"
+            hx-target="#story-list" hx-swap="innerHTML" hx-indicator=".loading-indicator">
+            Today
+        </button>
+        <button class="period-btn{% if active_period == 'week' %} active{% endif %}"
+            hx-get="/stories/filter?period=week{% if active_tag %}&tag={{ active_tag }}{% endif %}"
+            hx-target="#story-list" hx-swap="innerHTML" hx-indicator=".loading-indicator">
+            This Week
+        </button>
+        <button type="button" class="period-btn{% if active_period == 'custom' %} active{% endif %}"
+            onclick="document.getElementById('custom-date-picker').classList.toggle('hidden')">
+            Custom
+        </button>
+    </div>
+    <div id="custom-date-picker" class="custom-date-picker {% if active_period != 'custom' %}hidden{% endif %}">
+        <form hx-get="/stories/filter" hx-target="#story-list" hx-swap="innerHTML" hx-indicator=".loading-indicator"
+            hx-sync="closest .date-filter:abort">
+            <input type="hidden" name="period" value="custom">
+            {% if active_tag %}<input type="hidden" name="tag" value="{{ active_tag }}">{% endif %}
+            <div class="date-inputs">
+                <label>
+                    From:
+                    <input type="date" name="from" value="{{ date_from or '' }}" required>
+                </label>
+                <label>
+                    To:
+                    <input type="date" name="to" value="{{ date_to or '' }}" required>
+                </label>
+            </div>
+            <button type="submit" class="apply-dates-btn">
+                Apply
+            </button>
+        </form>
+    </div>
+    <div class="loading-indicator htmx-indicator">Loading...</div>
+</div>

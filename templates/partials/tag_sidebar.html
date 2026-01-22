@@ -1,0 +1,67 @@
+<div class="sidebar-content">
+    {% include "partials/date_filter.html" %}
+
+    <h3 class="sidebar-title">🏷️ Tags</h3>
+
+    <!-- All Stories -->
+    <a href="/" class="tag-pill tag-all{% if not active_tag %} active{% endif %}"
+        hx-get="/stories/filter{% if active_period != 'all' %}?period={{ active_period }}{% endif %}"
+        hx-target="#story-list" hx-swap="innerHTML">
+        All Stories
+    </a>
+
+    <!-- L1: Popular/Broad Categories -->
+    {% if tags_by_level[1] %}
+    <div class="tag-section">
+        <h4 class="tag-section-title">🔥 Popular</h4>
+        <div class="tag-cloud">
+            {% for tag in tags_by_level[1] %}
+            <a href="/?tag={{ tag.name }}" class="tag-pill tag-l1{% if active_tag == tag.name %} active{% endif %}"
+                hx-get="/stories/filter?tag={{ tag.name }}{% if active_period != 'all' %}&period={{ active_period }}{% endif %}"
+                hx-target="#story-list" hx-swap="innerHTML">
+                {{ tag.name }}
+                {% if tag.count > 0 %}<span class="tag-count">{{ tag.count }}</span>{% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- L2: Topics -->
+    {% if tags_by_level[2] %}
+    <div class="tag-section">
+        <h4 class="tag-section-title">📌 Topics</h4>
+        <div class="tag-cloud">
+            {% for tag in tags_by_level[2] %}
+            <a href="/?tag={{ tag.name }}" class="tag-pill tag-l2{% if active_tag == tag.name %} active{% endif %}"
+                hx-get="/stories/filter?tag={{ tag.name }}{% if active_period != 'all' %}&period={{ active_period }}{% endif %}"
+                hx-target="#story-list" hx-swap="innerHTML">
+                {{ tag.name }}
+                {% if tag.count > 0 %}<span class="tag-count">{{ tag.count }}</span>{% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- L3+: Specific Tags -->
+    {% if tags_by_level[3] %}
+    <div class="tag-section">
+        <h4 class="tag-section-title">🏷️ Specific</h4>
+        <div class="tag-cloud">
+            {% for tag in tags_by_level[3][:20] %}
+            <a href="/?tag={{ tag.name }}" class="tag-pill tag-l3{% if active_tag == tag.name %} active{% endif %}"
+                hx-get="/stories/filter?tag={{ tag.name }}{% if active_period != 'all' %}&period={{ active_period }}{% endif %}"
+                hx-target="#story-list" hx-swap="innerHTML">
+                {{ tag.name }}
+                {% if tag.count > 0 %}<span class="tag-count">{{ tag.count }}</span>{% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not tags_by_level[1] and not tags_by_level[2] and not tags_by_level[3] %}
+    <p class="no-tags">No tags yet. Tags will appear after stories are summarized.</p>
+    {% endif %}
+</div>

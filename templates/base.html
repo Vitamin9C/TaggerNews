@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="TaggerNews - A Modern Hacker News Aggregator with AI-Powered Summaries">
+    <title>{% block title %}TaggerNews{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="logo"><a href="/">🏷️ TaggerNews</a></h1>
+            <p class="tagline">AI-Powered Hacker News Summaries</p>
+            {% block header_info %}{% endblock %}
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <aside class="sidebar" id="tag-sidebar">
+            {% block sidebar %}
+            {% include "partials/tag_sidebar.html" %}
+            {% endblock %}
+        </aside>
+
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p>Built with FastAPI + HTMX | Data from <a href="https://news.ycombinator.com" target="_blank">Hacker
+                    News</a></p>
+        </div>
+    </footer>
+</body>
+
+</html>

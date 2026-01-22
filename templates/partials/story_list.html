@@ -1,0 +1,10 @@
+{% for story in stories %}
+{% include "partials/story_card.html" %}
+{% endfor %}
+
+{% if has_more %}
+<div hx-get="/stories/more?offset={{ offset }}&limit={{ limit }}{% if active_tag %}&tag={{ active_tag }}{% endif %}"
+    hx-trigger="revealed" hx-swap="outerHTML" class="load-more">
+    <span class="loading-text">Loading more stories...</span>
+</div>
+{% endif %}
