@@ -43,10 +43,14 @@ SUMMARIZATION_PROMPT = """Analyze this Hacker News story and provide:
 **L1 (Broad categories)**: Tech, Business, Science, Society
   - Pick 1-2 that best fit
 
-**L2 (Topics)**: AI/ML, Web, Systems, Security, Mobile, DevOps, Data, Cloud,
-  Open Source, Hardware, Python, Rust, Go, JavaScript, Linux, Startups,
-  Finance, Career, Products, Legal, Marketing, Research, Space, Biology, Physics
-  - Pick 2-4 relevant topics
+**L2 (Topics by category)**:
+  - Region: EU, USA, China, Canada, India, Germany, France, Netherlands, UK
+  - Tech Stacks: Python, Rust, Go, JavaScript, Linux
+  - Tech Topics: AI/ML, Web, Systems, Security, Mobile, DevOps, Data, Cloud,
+    Open Source, Hardware
+  - Business: Startups, Finance, Career, Products, Legal, Marketing
+  - Science: Research, Space, Biology, Physics
+  - Pick 2-4 relevant topics from any category
 
 **L3 (Specific)**: Use BROAD names for companies/products, not versions.
   Examples: OpenAI (not GPT-4), Google, Meta, AWS, YC, Stripe

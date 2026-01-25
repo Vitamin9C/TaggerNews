@@ -38,6 +38,36 @@ class SchedulerService:
         except Exception as e:
             logger.error(f"Scrape job failed: {e}")
 
+    async def _run_recovery_job(self) -> None:
+        """Process stories that failed tagging or summarization."""
+        logger.info("Starting recovery job for unprocessed stories...")
+        try:
+            async with async_session_factory() as session:
+                from taggernews.repositories.story_repo import StoryRepository
+
+                story_repo = StoryRepository(session)
+                scraper = ScraperService(session)
+
+                # Get unprocessed stories
+                unprocessed = await story_repo.get_unprocessed_stories(
+                    limit=settings.summarization_batch_size
+                )
+
+                if not unprocessed:
+                    logger.info("No unprocessed stories found")
+                    return
+
+                logger.info(f"Found {len(unprocessed)} unprocessed stories")
+
+                # Process them through the summarization pipeline
+                count = await scraper.generate_missing_summaries(
+                    limit=len(unprocessed)
+                )
+                await session.commit()
+                logger.info(f"Recovery job: processed {count} stories")
+        except Exception as e:
+            logger.error(f"Recovery job failed: {e}")
+
     async def _run_startup_backfill(self) -> None:
         """Backfill stories from the past N days on startup."""
         if self._startup_done:
@@ -83,7 +113,21 @@ class SchedulerService:
             name="Hourly Scrape and Summarize",
             replace_existing=True,
         )
-        logger.info(f"Scheduled hourly scrape (every {settings.scrape_interval_hours}h)")
+        logger.info(
+            f"Scheduled hourly scrape (every {settings.scrape_interval_hours}h)"
+        )
+
+        # Add recovery job for failed processing
+        self.scheduler.add_job(
+            self._run_recovery_job,
+            trigger=IntervalTrigger(minutes=settings.recovery_interval_minutes),
+            id="recovery_job",
+            name="Recovery Job for Unprocessed Stories",
+            replace_existing=True,
+        )
+        logger.info(
+            f"Scheduled recovery job (every {settings.recovery_interval_minutes}m)"
+        )
 
         # Add startup backfill job (runs once at startup)
         self.scheduler.add_job(
@@ -93,7 +137,9 @@ class SchedulerService:
             name="Startup Backfill",
             replace_existing=True,
         )
-        logger.info(f"Scheduled startup backfill ({settings.startup_backfill_days} days)")
+        logger.info(
+            f"Scheduled startup backfill ({settings.startup_backfill_days} days)"
+        )
 
         self.scheduler.start()
         logger.info("Scheduler started")

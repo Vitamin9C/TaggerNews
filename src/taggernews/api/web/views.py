@@ -1,12 +1,14 @@
 """HTMX-powered web views."""
 
+import json
 from datetime import datetime
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from taggernews.api.dependencies import StoryRepoDep, TagRepoDep
+from taggernews.repositories.story_repo import TagFilter
 
 router = APIRouter(tags=["web"])
 
@@ -167,3 +169,64 @@ async def filter_stories(
             "date_to": date_to,
         },
     )
+
+
+@router.get("/api/stories/advanced-filter")
+async def advanced_filter_stories(
+    story_repo: StoryRepoDep,
+    l1_include: str | None = Query(None, description="JSON array of L1 tags to include"),
+    l1_exclude: str | None = Query(None, description="JSON array of L1 tags to exclude"),
+    l2_include: str | None = Query(None, description="JSON array of L2 tags to include"),
+    l2_exclude: str | None = Query(None, description="JSON array of L2 tags to exclude"),
+    l3_include: str | None = Query(None, description="JSON array of L3 tags to include"),
+    offset: int = 0,
+    limit: int = 30,
+) -> JSONResponse:
+    """API endpoint for advanced tag filtering (backend only).
+
+    Query parameters accept JSON-encoded arrays:
+    - l1_include: ["Tech", "Business"]
+    - l2_include: ["AI/ML", "Web"]
+    - l2_exclude: ["Finance"]
+    """
+
+    def parse_json_list(s: str | None) -> list[str]:
+        if not s:
+            return []
+        try:
+            result = json.loads(s)
+            return result if isinstance(result, list) else []
+        except json.JSONDecodeError:
+            return []
+
+    tag_filter = TagFilter(
+        l1_include=parse_json_list(l1_include),
+        l1_exclude=parse_json_list(l1_exclude),
+        l2_include=parse_json_list(l2_include),
+        l2_exclude=parse_json_list(l2_exclude),
+        l3_include=parse_json_list(l3_include),
+    )
+
+    stories = await story_repo.list_stories_by_tag_filter(tag_filter, offset, limit)
+    total = await story_repo.count_by_tag_filter(tag_filter)
+
+    return JSONResponse({
+        "stories": [
+            {
+                "id": s.id,
+                "hn_id": s.hn_id,
+                "title": s.title,
+                "url": s.url,
+                "score": s.score,
+                "author": s.author,
+                "comment_count": s.comment_count,
+                "summary": s.summary.text if s.summary else None,
+                "tags": [{"name": t.name, "level": t.level} for t in s.tags],
+            }
+            for s in stories
+        ],
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "has_more": offset + len(stories) < total,
+    })

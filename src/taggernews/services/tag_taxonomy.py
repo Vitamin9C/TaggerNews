@@ -14,36 +14,52 @@ logger = logging.getLogger(__name__)
 
 # Canonical tags by level
 L1_TAGS = {"Tech", "Business", "Science", "Society"}
-L2_TAGS = {
-    # Tech topics
-    "AI/ML",
-    "Web",
-    "Systems",
-    "Security",
-    "Mobile",
-    "DevOps",
-    "Data",
-    "Cloud",
-    "Open Source",
-    "Hardware",
-    "Python",
-    "Rust",
-    "Go",
-    "JavaScript",
-    "Linux",
-    # Business topics
-    "Startups",
-    "Finance",
-    "Career",
-    "Products",
-    "Legal",
-    "Marketing",
-    # Science topics
-    "Research",
-    "Space",
-    "Biology",
-    "Physics",
+
+# L2 tags organized by mother category
+L2_TAG_CATEGORIES: dict[str, str] = {
+    # Region
+    "EU": "Region",
+    "USA": "Region",
+    "China": "Region",
+    "Canada": "Region",
+    "India": "Region",
+    "Germany": "Region",
+    "France": "Region",
+    "Netherlands": "Region",
+    "UK": "Region",
+    # Tech Stacks (programming languages/frameworks)
+    "Python": "Tech Stacks",
+    "Rust": "Tech Stacks",
+    "Go": "Tech Stacks",
+    "JavaScript": "Tech Stacks",
+    "Linux": "Tech Stacks",
+    # Tech Topics
+    "AI/ML": "Tech Topics",
+    "Web": "Tech Topics",
+    "Systems": "Tech Topics",
+    "Security": "Tech Topics",
+    "Mobile": "Tech Topics",
+    "DevOps": "Tech Topics",
+    "Data": "Tech Topics",
+    "Cloud": "Tech Topics",
+    "Open Source": "Tech Topics",
+    "Hardware": "Tech Topics",
+    # Business
+    "Startups": "Business",
+    "Finance": "Business",
+    "Career": "Business",
+    "Products": "Business",
+    "Legal": "Business",
+    "Marketing": "Business",
+    # Science
+    "Research": "Science",
+    "Space": "Science",
+    "Biology": "Science",
+    "Physics": "Science",
 }
+
+# Set of all L2 tags for quick lookup
+L2_TAGS = set(L2_TAG_CATEGORIES.keys())
 
 
 def normalize_slug(name: str) -> str:
@@ -61,6 +77,11 @@ def get_level_for_tag(name: str) -> int:
     if name in L2_TAGS:
         return 2
     return 3  # Default to L3 for specific/misc tags
+
+
+def get_category_for_tag(name: str) -> str | None:
+    """Get the mother category for an L2 tag."""
+    return L2_TAG_CATEGORIES.get(name)
 
 
 @dataclass
@@ -107,11 +128,13 @@ class TaxonomyService:
         # Create new tag
         level = get_level_for_tag(name)
         is_misc = level == 3
+        category = get_category_for_tag(name)
 
         tag = TagModel(
             name=name,
             slug=slug,
             level=level,
+            category=category,
             is_misc=is_misc,
             usage_count=1,
         )
@@ -119,7 +142,7 @@ class TaxonomyService:
         await self.session.flush()
 
         self._tag_cache[slug] = tag
-        logger.info(f"Created new L{level} tag: {name}")
+        logger.info(f"Created new L{level} tag: {name} (category: {category})")
         return tag
 
     async def resolve_tags(self, flat_tags: FlatTags) -> list[TagModel]:

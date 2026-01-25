@@ -1,10 +1,12 @@
 """Scraper service - orchestrates fetching and storing stories."""
 
 import logging
+import time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from taggernews.config import get_settings
+from taggernews.infrastructure.csv_logger import get_scraping_logger
 from taggernews.infrastructure.hn_client import HNClient
 from taggernews.repositories.story_repo import (
     StoryRepository,
@@ -15,6 +17,7 @@ from taggernews.services.summarizer import SummarizerService
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+csv_logger = get_scraping_logger()
 
 
 class ScraperService:
@@ -39,9 +42,11 @@ class ScraperService:
             Number of stories processed
         """
         limit = limit or settings.top_stories_count
+        start_time = time.perf_counter()
 
         try:
             # Fetch story IDs from both top and new
+            fetch_start = time.perf_counter()
             story_ids = await self.hn_client.get_all_story_ids(limit=limit)
             if not story_ids:
                 logger.warning("No story IDs fetched")
@@ -49,18 +54,26 @@ class ScraperService:
 
             # Fetch stories concurrently
             stories = await self.hn_client.get_stories(story_ids)
+            fetch_duration_ms = (time.perf_counter() - fetch_start) * 1000
+            csv_logger.log("fetch_stories", fetch_duration_ms, len(stories))
+
             if not stories:
                 logger.warning("No stories fetched")
                 return 0
 
             # Upsert to database
+            upsert_start = time.perf_counter()
             models = await self.story_repo.upsert_many(stories)
+            upsert_duration_ms = (time.perf_counter() - upsert_start) * 1000
+            csv_logger.log("upsert_stories", upsert_duration_ms, len(models))
             logger.info(f"Upserted {len(models)} stories")
 
             return len(models)
 
         finally:
             await self.hn_client.close()
+            total_duration_ms = (time.perf_counter() - start_time) * 1000
+            csv_logger.log("scrape_top_stories_total", total_duration_ms, limit)
 
     async def generate_missing_summaries(self, limit: int = 10) -> int:
         """Generate summaries for stories that don't have them.
@@ -75,8 +88,12 @@ class ScraperService:
 
         from taggernews.services.tag_taxonomy import TaxonomyService
 
+        start_time = time.perf_counter()
+
         # Get stories without summaries
-        stories_without = await self.summary_repo.get_stories_without_summary(limit=limit)
+        stories_without = await self.summary_repo.get_stories_without_summary(
+            limit=limit
+        )
 
         if not stories_without:
             logger.info("All stories have summaries")
@@ -107,6 +124,7 @@ class ScraperService:
 
         async def process_story(story: Story) -> bool:
             async with semaphore:
+                story_start = time.perf_counter()
                 result = await self.summarizer.summarize_story(story)
                 if result:
                     summary, flat_tags = result
@@ -122,12 +140,22 @@ class ScraperService:
                         for tag in tag_models:
                             if tag not in story_model.tags:
                                 story_model.tags.append(tag)
+                        # Mark story as processed
+                        story_model.is_summarized = True
+                        story_model.is_tagged = True
                         logger.debug(f"Story {story.hn_id}: {len(tag_models)} tags")
+                    story_duration_ms = (time.perf_counter() - story_start) * 1000
+                    csv_logger.log(
+                        "summarize_story", story_duration_ms, 1, len(summary.text)
+                    )
                     return True
                 return False
 
         results = await asyncio.gather(*[process_story(s) for s in stories])
         count = sum(results)
+
+        total_duration_ms = (time.perf_counter() - start_time) * 1000
+        csv_logger.log("generate_missing_summaries_total", total_duration_ms, count)
 
         logger.info(f"Generated {count} summaries")
         return count

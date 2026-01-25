@@ -55,3 +55,8 @@ select = ["E", "F", "I", "N", "W", "UP"]
 python_version = "3.11"
 strict = true
 ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "locust>=2.43.1",
+]

@@ -1,13 +1,43 @@
 """Story repository for database operations."""
 
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from taggernews.domain.story import Story
 from taggernews.infrastructure.models import StoryModel, SummaryModel, TagModel
+
+
+@dataclass
+class TagFilter:
+    """Structured filter for advanced tag-based queries.
+
+    Filtering logic:
+    - l1_include: OR within level, AND with other levels
+    - l1_exclude: NOT - exclude stories with these tags
+    - l2_include: OR within level, AND with other levels
+    - l2_exclude: NOT - exclude stories with these tags
+    - l3_include: Always OR (default behavior)
+    """
+
+    l1_include: list[str] = field(default_factory=list)
+    l1_exclude: list[str] = field(default_factory=list)
+    l2_include: list[str] = field(default_factory=list)
+    l2_exclude: list[str] = field(default_factory=list)
+    l3_include: list[str] = field(default_factory=list)
+
+    def is_empty(self) -> bool:
+        """Check if no filters are set."""
+        return not any([
+            self.l1_include,
+            self.l1_exclude,
+            self.l2_include,
+            self.l2_exclude,
+            self.l3_include,
+        ])
 
 
 class StoryRepository:
@@ -203,6 +233,198 @@ class StoryRepository:
             models.append(model)
         return models
 
+    async def get_unprocessed_stories(self, limit: int = 10) -> list[StoryModel]:
+        """Get stories that haven't been fully processed (tagged or summarized).
+
+        Returns stories where is_tagged=False OR is_summarized=False,
+        ordered by score (highest first).
+
+        Args:
+            limit: Maximum number of stories to return
+
+        Returns:
+            List of unprocessed StoryModel instances
+        """
+        stmt = (
+            select(StoryModel)
+            .options(selectinload(StoryModel.summary), selectinload(StoryModel.tags))
+            .where(
+                or_(
+                    StoryModel.is_tagged.is_(False),
+                    StoryModel.is_summarized.is_(False),
+                )
+            )
+            .order_by(StoryModel.score.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_stories_by_tag_filter(
+        self,
+        tag_filter: TagFilter,
+        offset: int = 0,
+        limit: int = 30,
+    ) -> list[StoryModel]:
+        """List stories with advanced tag filtering.
+
+        Args:
+            tag_filter: Structured filter with include/exclude lists
+            offset: Pagination offset
+            limit: Maximum stories to return
+
+        Returns:
+            List of matching stories ordered by score
+        """
+        from sqlalchemy import exists
+
+        from taggernews.infrastructure.models import story_tags
+
+        if tag_filter.is_empty():
+            return await self.list_stories(offset, limit)
+
+        # Build base query
+        stmt = (
+            select(StoryModel)
+            .options(selectinload(StoryModel.summary), selectinload(StoryModel.tags))
+        )
+
+        conditions = []
+
+        # L1 include: story must have at least one of these L1 tags
+        if tag_filter.l1_include:
+            l1_subq = (
+                select(story_tags.c.story_id)
+                .join(TagModel, story_tags.c.tag_id == TagModel.id)
+                .where(TagModel.level == 1)
+                .where(TagModel.name.in_(tag_filter.l1_include))
+            )
+            conditions.append(StoryModel.id.in_(l1_subq))
+
+        # L2 include: story must have at least one of these L2 tags
+        if tag_filter.l2_include:
+            l2_subq = (
+                select(story_tags.c.story_id)
+                .join(TagModel, story_tags.c.tag_id == TagModel.id)
+                .where(TagModel.level == 2)
+                .where(TagModel.name.in_(tag_filter.l2_include))
+            )
+            conditions.append(StoryModel.id.in_(l2_subq))
+
+        # L3 include: story must have at least one of these L3 tags
+        if tag_filter.l3_include:
+            l3_subq = (
+                select(story_tags.c.story_id)
+                .join(TagModel, story_tags.c.tag_id == TagModel.id)
+                .where(TagModel.level == 3)
+                .where(TagModel.name.in_(tag_filter.l3_include))
+            )
+            conditions.append(StoryModel.id.in_(l3_subq))
+
+        # L1 exclude: story must NOT have any of these L1 tags
+        if tag_filter.l1_exclude:
+            l1_excl_subq = (
+                exists(
+                    select(story_tags.c.story_id)
+                    .join(TagModel, story_tags.c.tag_id == TagModel.id)
+                    .where(story_tags.c.story_id == StoryModel.id)
+                    .where(TagModel.level == 1)
+                    .where(TagModel.name.in_(tag_filter.l1_exclude))
+                )
+            )
+            conditions.append(~l1_excl_subq)
+
+        # L2 exclude: story must NOT have any of these L2 tags
+        if tag_filter.l2_exclude:
+            l2_excl_subq = (
+                exists(
+                    select(story_tags.c.story_id)
+                    .join(TagModel, story_tags.c.tag_id == TagModel.id)
+                    .where(story_tags.c.story_id == StoryModel.id)
+                    .where(TagModel.level == 2)
+                    .where(TagModel.name.in_(tag_filter.l2_exclude))
+                )
+            )
+            conditions.append(~l2_excl_subq)
+
+        # Combine all conditions with AND
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
+
+        stmt = stmt.order_by(StoryModel.score.desc()).offset(offset).limit(limit)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def count_by_tag_filter(self, tag_filter: TagFilter) -> int:
+        """Count stories matching a tag filter."""
+        from sqlalchemy import exists, func
+
+        from taggernews.infrastructure.models import story_tags
+
+        if tag_filter.is_empty():
+            return await self.count()
+
+        stmt = select(func.count(StoryModel.id))
+        conditions = []
+
+        if tag_filter.l1_include:
+            l1_subq = (
+                select(story_tags.c.story_id)
+                .join(TagModel, story_tags.c.tag_id == TagModel.id)
+                .where(TagModel.level == 1)
+                .where(TagModel.name.in_(tag_filter.l1_include))
+            )
+            conditions.append(StoryModel.id.in_(l1_subq))
+
+        if tag_filter.l2_include:
+            l2_subq = (
+                select(story_tags.c.story_id)
+                .join(TagModel, story_tags.c.tag_id == TagModel.id)
+                .where(TagModel.level == 2)
+                .where(TagModel.name.in_(tag_filter.l2_include))
+            )
+            conditions.append(StoryModel.id.in_(l2_subq))
+
+        if tag_filter.l3_include:
+            l3_subq = (
+                select(story_tags.c.story_id)
+                .join(TagModel, story_tags.c.tag_id == TagModel.id)
+                .where(TagModel.level == 3)
+                .where(TagModel.name.in_(tag_filter.l3_include))
+            )
+            conditions.append(StoryModel.id.in_(l3_subq))
+
+        if tag_filter.l1_exclude:
+            l1_excl_subq = (
+                exists(
+                    select(story_tags.c.story_id)
+                    .join(TagModel, story_tags.c.tag_id == TagModel.id)
+                    .where(story_tags.c.story_id == StoryModel.id)
+                    .where(TagModel.level == 1)
+                    .where(TagModel.name.in_(tag_filter.l1_exclude))
+                )
+            )
+            conditions.append(~l1_excl_subq)
+
+        if tag_filter.l2_exclude:
+            l2_excl_subq = (
+                exists(
+                    select(story_tags.c.story_id)
+                    .join(TagModel, story_tags.c.tag_id == TagModel.id)
+                    .where(story_tags.c.story_id == StoryModel.id)
+                    .where(TagModel.level == 2)
+                    .where(TagModel.name.in_(tag_filter.l2_exclude))
+                )
+            )
+            conditions.append(~l2_excl_subq)
+
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
+
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0
+
 
 class SummaryRepository:
     """Repository for Summary CRUD operations."""
@@ -288,11 +510,12 @@ class TagRepository:
         return list(result.scalars().all())
 
     async def get_tags_grouped_by_level(self) -> dict[int, list[dict]]:
-        """Get tags grouped by level with story counts.
+        """Get tags grouped by level with story counts and category.
 
         Returns:
-            {1: [{"name": "Tech", "slug": "tech", "count": 50}, ...],
-             2: [...], 3: [...]}
+            {1: [{"name": "Tech", "slug": "tech", "count": 50, "category": None}],
+             2: [{"name": "AI/ML", ..., "category": "Tech Topics"}],
+             3: [...]}
         """
         from sqlalchemy import func
 
@@ -303,19 +526,73 @@ class TagRepository:
                 TagModel.name,
                 TagModel.slug,
                 TagModel.level,
+                TagModel.category,
                 func.count(story_tags.c.story_id).label("count"),
             )
             .outerjoin(story_tags, TagModel.id == story_tags.c.tag_id)
-            .group_by(TagModel.id, TagModel.name, TagModel.slug, TagModel.level)
+            .group_by(
+                TagModel.id,
+                TagModel.name,
+                TagModel.slug,
+                TagModel.level,
+                TagModel.category,
+            )
             .order_by(TagModel.level, func.count(story_tags.c.story_id).desc())
         )
         result = await self.session.execute(stmt)
         rows = result.all()
 
         grouped: dict[int, list[dict]] = {1: [], 2: [], 3: []}
-        for name, slug, level, count in rows:
+        for name, slug, level, category, count in rows:
             level_key = min(level, 3)  # Group 3+ together
             grouped[level_key].append(
+                {
+                    "name": name,
+                    "slug": slug,
+                    "count": count,
+                    "category": category,
+                }
+            )
+
+        return grouped
+
+    async def get_tags_grouped_by_category(self) -> dict[str, list[dict]]:
+        """Get L2 tags grouped by their mother category.
+
+        Returns:
+            {"Region": [{"name": "USA", "slug": "usa", "count": 10}],
+             "Tech Stacks": [...], ...}
+        """
+        from sqlalchemy import func
+
+        from taggernews.infrastructure.models import story_tags
+
+        stmt = (
+            select(
+                TagModel.name,
+                TagModel.slug,
+                TagModel.category,
+                func.count(story_tags.c.story_id).label("count"),
+            )
+            .outerjoin(story_tags, TagModel.id == story_tags.c.tag_id)
+            .where(TagModel.level == 2)
+            .where(TagModel.category.isnot(None))
+            .group_by(
+                TagModel.id,
+                TagModel.name,
+                TagModel.slug,
+                TagModel.category,
+            )
+            .order_by(TagModel.category, func.count(story_tags.c.story_id).desc())
+        )
+        result = await self.session.execute(stmt)
+        rows = result.all()
+
+        grouped: dict[str, list[dict]] = {}
+        for name, slug, category, count in rows:
+            if category not in grouped:
+                grouped[category] = []
+            grouped[category].append(
                 {
                     "name": name,
                     "slug": slug,

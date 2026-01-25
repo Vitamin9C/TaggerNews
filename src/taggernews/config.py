@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     scrape_interval_hours: int = 1
     startup_backfill_days_dev: int = 0
     startup_backfill_days_prod: int = 21
+    recovery_interval_minutes: int = 5
 
     # Summarization
     summarization_model: str = "gpt-4o-mini"

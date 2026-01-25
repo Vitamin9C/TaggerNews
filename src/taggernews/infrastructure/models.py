@@ -2,7 +2,18 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Text, func
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Table,
+    Text,
+    func,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -25,9 +36,14 @@ class StoryModel(Base):
     """SQLAlchemy model for stories table."""
 
     __tablename__ = "stories"
+    __table_args__ = (
+        Index("ix_stories_processing_status", "is_tagged", "is_summarized"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    hn_id: Mapped[int] = mapped_column(Integer, unique=True, index=True, nullable=False)
+    hn_id: Mapped[int] = mapped_column(
+        Integer, unique=True, index=True, nullable=False
+    )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     score: Mapped[int] = mapped_column(Integer, default=0)
@@ -39,6 +55,12 @@ class StoryModel(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Processing status flags
+    is_tagged: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_summarized: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
     )
 
     # Relationship to summary
@@ -78,6 +100,9 @@ class TagModel(Base):
         1 = Broad categories (Tech, Business, Science, Society)
         2 = Topics (AI/ML, Web, Python, Startups, etc.)
         3+ = Specific tags (GPT-4, LangChain, YC, etc.)
+
+    Categories (for L2 tags):
+        Region, Tech Stacks, Industry, etc.
     """
 
     __tablename__ = "tags"
@@ -86,6 +111,7 @@ class TagModel(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     slug: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     level: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
+    category: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_misc: Mapped[bool] = mapped_column(default=False, nullable=False)
     usage_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
