@@ -5,6 +5,7 @@ import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
+from taggernews.agents.orchestrator import get_orchestrator
 from taggernews.config import get_settings
 from taggernews.infrastructure.database import async_session_factory
 from taggernews.services.scraper import ScraperService
@@ -103,6 +104,20 @@ class SchedulerService:
         except Exception as e:
             logger.error(f"Startup backfill failed: {e}")
 
+    async def _run_weekly_agent_analysis(self) -> None:
+        """Weekly agent analysis job for tag taxonomy management."""
+        logger.info("Starting weekly agent analysis...")
+        try:
+            orchestrator = get_orchestrator()
+            mode = "auto-apply" if settings.agent_enable_auto_approve else "proposal"
+            result = await orchestrator.run_analysis_pipeline(mode=mode)
+            logger.info(
+                f"Agent analysis complete: {result['proposals_created']} proposals, "
+                f"{result.get('auto_approved', 0)} auto-approved"
+            )
+        except Exception as e:
+            logger.error(f"Agent analysis failed: {e}", exc_info=True)
+
     def start(self) -> None:
         """Start the scheduler with configured jobs."""
         # Add hourly scrape job
@@ -139,6 +154,19 @@ class SchedulerService:
         )
         logger.info(
             f"Scheduled startup backfill ({settings.startup_backfill_days} days)"
+        )
+
+        # Add weekly agent analysis job
+        self.scheduler.add_job(
+            self._run_weekly_agent_analysis,
+            trigger=IntervalTrigger(weeks=settings.agent_run_interval_weeks),
+            id="weekly_agent_analysis",
+            name="Weekly Tag Taxonomy Analysis",
+            replace_existing=True,
+        )
+        logger.info(
+            f"Scheduled weekly agent analysis "
+            f"(every {settings.agent_run_interval_weeks} week(s))"
         )
 
         self.scheduler.start()

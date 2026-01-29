@@ -41,6 +41,15 @@ class Settings(BaseSettings):
     # Dev-only: Manual tag extension (for testing L2/L3 tag creation)
     enable_manual_tag_extension: bool = False
 
+    # Agent Configuration
+    agent_analysis_window_days: int = 30
+    agent_min_tag_usage: int = 3
+    agent_max_proposals_per_run: int = 10
+    agent_openai_model: str = "gpt-4o-mini"
+    agent_run_interval_weeks: int = 1
+    agent_enable_auto_approve: bool = False
+    agent_auto_approve_max_affected: int = 5
+
     @property
     def is_production(self) -> bool:
         """Check if running in production environment."""

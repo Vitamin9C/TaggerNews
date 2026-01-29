@@ -1,0 +1,149 @@
+<div class="advanced-filter-panel" x-data="filterBuilder()" x-init="loadTags()">
+    <div class="filter-header">
+        <h4>Advanced Filters</h4>
+        <button @click="showFilters = !showFilters" class="toggle-btn" x-text="showFilters ? 'Hide' : 'Show'"></button>
+    </div>
+
+    <div x-show="showFilters" x-transition class="filter-content">
+        <!-- L1 Categories -->
+        <div class="filter-group">
+            <div class="filter-group-header">
+                <span class="filter-label">Categories</span>
+                <div class="filter-mode-toggle">
+                    <button @click="toggleMode('l1')"
+                            :class="{'mode-include': modes.l1 === 'include', 'mode-exclude': modes.l1 === 'exclude'}"
+                            x-text="modes.l1 === 'include' ? 'Include' : 'Exclude'"></button>
+                </div>
+            </div>
+            <div class="tag-selector">
+                <template x-for="tag in availableTags.l1" :key="tag.name">
+                    <button @click="toggleFilter('l1', tag.name)"
+                            :class="{'tag-chip': true, 'selected': isSelected('l1', tag.name), 'exclude-mode': modes.l1 === 'exclude'}"
+                            x-text="`${tag.name} (${tag.count})`">
+                    </button>
+                </template>
+            </div>
+        </div>
+
+        <!-- L2 Topics by Category -->
+        <div class="filter-group">
+            <div class="filter-group-header">
+                <span class="filter-label">Topics</span>
+                <div class="filter-mode-toggle">
+                    <button @click="toggleMode('l2')"
+                            :class="{'mode-include': modes.l2 === 'include', 'mode-exclude': modes.l2 === 'exclude'}"
+                            x-text="modes.l2 === 'include' ? 'Include' : 'Exclude'"></button>
+                </div>
+            </div>
+
+            <template x-for="(tags, category) in availableTags.categories" :key="category">
+                <div class="category-section">
+                    <h5 class="category-title" x-text="category"></h5>
+                    <div class="tag-selector">
+                        <template x-for="tag in tags" :key="tag.name">
+                            <button @click="toggleFilter('l2', tag.name)"
+                                    :class="{'tag-chip': true, 'selected': isSelected('l2', tag.name), 'exclude-mode': modes.l2 === 'exclude'}"
+                                    x-text="`${tag.name} (${tag.count})`">
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- Actions -->
+        <div class="filter-actions">
+            <button @click="applyFilters()" class="btn-primary">Apply Filters</button>
+            <button @click="clearFilters()" class="btn-secondary">Clear All</button>
+            <span x-show="activeFilterCount > 0" class="filter-count" x-text="`${activeFilterCount} active`"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+function filterBuilder() {
+    return {
+        showFilters: false,
+        modes: {
+            l1: 'include',
+            l2: 'include'
+        },
+        filters: {
+            l1_include: [],
+            l1_exclude: [],
+            l2_include: [],
+            l2_exclude: []
+        },
+        availableTags: { l1: [], l2: [], l3: [], categories: {} },
+
+        get activeFilterCount() {
+            return Object.values(this.filters).reduce((sum, arr) => sum + arr.length, 0);
+        },
+
+        async loadTags() {
+            try {
+                const response = await fetch('/api/tags/grouped');
+                const data = await response.json();
+                this.availableTags = data;
+            } catch (error) {
+                console.error('Failed to load tags:', error);
+            }
+        },
+
+        toggleMode(level) {
+            this.modes[level] = this.modes[level] === 'include' ? 'exclude' : 'include';
+            // Clear selections when toggling mode
+            this.filters[`${level}_include`] = [];
+            this.filters[`${level}_exclude`] = [];
+        },
+
+        toggleFilter(level, tag) {
+            const key = `${level}_${this.modes[level]}`;
+            const index = this.filters[key].indexOf(tag);
+            if (index > -1) {
+                this.filters[key].splice(index, 1);
+            } else {
+                this.filters[key].push(tag);
+            }
+        },
+
+        isSelected(level, tag) {
+            const includeKey = `${level}_include`;
+            const excludeKey = `${level}_exclude`;
+            return this.filters[includeKey].includes(tag) || this.filters[excludeKey].includes(tag);
+        },
+
+        async applyFilters() {
+            const params = new URLSearchParams();
+            for (const [key, value] of Object.entries(this.filters)) {
+                if (value.length > 0) {
+                    params.set(key, JSON.stringify(value));
+                }
+            }
+
+            // Update URL
+            const newUrl = params.toString() ? '?' + params.toString() : '/';
+            window.history.pushState({}, '', newUrl);
+
+            // Fetch filtered stories via HTMX
+            const queryString = params.toString() ? '?' + params.toString() : '';
+            htmx.ajax('GET', '/api/stories/advanced-filter' + queryString, {
+                target: '#story-list',
+                swap: 'innerHTML'
+            });
+        },
+
+        clearFilters() {
+            this.filters = {
+                l1_include: [],
+                l1_exclude: [],
+                l2_include: [],
+                l2_exclude: []
+            };
+            this.modes = { l1: 'include', l2: 'include' };
+            window.history.pushState({}, '', '/');
+            location.reload();
+        }
+    };
+}
+</script>

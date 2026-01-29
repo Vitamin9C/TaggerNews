@@ -171,8 +171,68 @@ async def filter_stories(
     )
 
 
-@router.get("/api/stories/advanced-filter")
+def _parse_json_list(s: str | None) -> list[str]:
+    """Parse a JSON-encoded list from query parameter."""
+    if not s:
+        return []
+    try:
+        result = json.loads(s)
+        return result if isinstance(result, list) else []
+    except json.JSONDecodeError:
+        return []
+
+
+@router.get("/api/stories/advanced-filter", response_class=HTMLResponse)
 async def advanced_filter_stories(
+    request: Request,
+    story_repo: StoryRepoDep,
+    l1_include: str | None = Query(None, description="JSON array of L1 tags to include"),
+    l1_exclude: str | None = Query(None, description="JSON array of L1 tags to exclude"),
+    l2_include: str | None = Query(None, description="JSON array of L2 tags to include"),
+    l2_exclude: str | None = Query(None, description="JSON array of L2 tags to exclude"),
+    l3_include: str | None = Query(None, description="JSON array of L3 tags to include"),
+    offset: int = 0,
+    limit: int = 30,
+) -> HTMLResponse:
+    """HTMX endpoint for advanced tag filtering.
+
+    Query parameters accept JSON-encoded arrays:
+    - l1_include: ["Tech", "Business"]
+    - l2_include: ["AI/ML", "Web"]
+    - l2_exclude: ["Finance"]
+
+    Returns HTML partial for HTMX swapping.
+    """
+    tag_filter = TagFilter(
+        l1_include=_parse_json_list(l1_include),
+        l1_exclude=_parse_json_list(l1_exclude),
+        l2_include=_parse_json_list(l2_include),
+        l2_exclude=_parse_json_list(l2_exclude),
+        l3_include=_parse_json_list(l3_include),
+    )
+
+    stories = await story_repo.list_stories_by_tag_filter(tag_filter, offset, limit)
+    total = await story_repo.count_by_tag_filter(tag_filter)
+    has_more = offset + len(stories) < total
+
+    return templates.TemplateResponse(
+        request=request,
+        name="partials/story_list.html",
+        context={
+            "stories": stories,
+            "offset": offset + limit,
+            "limit": limit,
+            "has_more": has_more,
+            "active_tag": None,
+            "active_period": "all",
+            "date_from": None,
+            "date_to": None,
+        },
+    )
+
+
+@router.get("/api/stories/advanced-filter.json")
+async def advanced_filter_stories_json(
     story_repo: StoryRepoDep,
     l1_include: str | None = Query(None, description="JSON array of L1 tags to include"),
     l1_exclude: str | None = Query(None, description="JSON array of L1 tags to exclude"),
@@ -182,29 +242,19 @@ async def advanced_filter_stories(
     offset: int = 0,
     limit: int = 30,
 ) -> JSONResponse:
-    """API endpoint for advanced tag filtering (backend only).
+    """JSON API endpoint for advanced tag filtering.
 
     Query parameters accept JSON-encoded arrays:
     - l1_include: ["Tech", "Business"]
     - l2_include: ["AI/ML", "Web"]
     - l2_exclude: ["Finance"]
     """
-
-    def parse_json_list(s: str | None) -> list[str]:
-        if not s:
-            return []
-        try:
-            result = json.loads(s)
-            return result if isinstance(result, list) else []
-        except json.JSONDecodeError:
-            return []
-
     tag_filter = TagFilter(
-        l1_include=parse_json_list(l1_include),
-        l1_exclude=parse_json_list(l1_exclude),
-        l2_include=parse_json_list(l2_include),
-        l2_exclude=parse_json_list(l2_exclude),
-        l3_include=parse_json_list(l3_include),
+        l1_include=_parse_json_list(l1_include),
+        l1_exclude=_parse_json_list(l1_exclude),
+        l2_include=_parse_json_list(l2_include),
+        l2_exclude=_parse_json_list(l2_exclude),
+        l3_include=_parse_json_list(l3_include),
     )
 
     stories = await story_repo.list_stories_by_tag_filter(tag_filter, offset, limit)
@@ -229,4 +279,22 @@ async def advanced_filter_stories(
         "offset": offset,
         "limit": limit,
         "has_more": offset + len(stories) < total,
+    })
+
+
+@router.get("/api/tags/grouped")
+async def get_grouped_tags(tag_repo: TagRepoDep) -> JSONResponse:
+    """Get tags grouped for filter UI.
+
+    Returns:
+        JSON with l1, l2, l3 tag arrays and categories grouped by mother category.
+    """
+    by_level = await tag_repo.get_tags_grouped_by_level()
+    by_category = await tag_repo.get_tags_grouped_by_category()
+
+    return JSONResponse({
+        "l1": by_level.get(1, []),
+        "l2": by_level.get(2, []),
+        "l3": by_level.get(3, []),
+        "categories": by_category,
     })

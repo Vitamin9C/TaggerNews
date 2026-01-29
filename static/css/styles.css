@@ -688,3 +688,180 @@ details[open] .summary-toggle::after {
 .loading-indicator.htmx-request {
     display: block;
 }
+
+/* Advanced Filter Panel */
+.advanced-filter-panel {
+    background: var(--bg-secondary);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--border-color);
+}
+
+.filter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.filter-header h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.toggle-btn {
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.toggle-btn:hover {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.filter-content {
+    margin-top: 1rem;
+}
+
+.filter-group {
+    margin-bottom: 1.25rem;
+}
+
+.filter-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.filter-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.filter-mode-toggle button {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.filter-mode-toggle button.mode-include {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
+}
+
+.filter-mode-toggle button.mode-exclude {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: white;
+}
+
+.tag-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.advanced-filter-panel .tag-chip {
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-secondary);
+}
+
+.advanced-filter-panel .tag-chip:hover {
+    border-color: var(--accent-blue);
+    color: var(--text-primary);
+}
+
+.advanced-filter-panel .tag-chip.selected {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
+}
+
+.advanced-filter-panel .tag-chip.exclude-mode {
+    border-style: dashed;
+}
+
+.advanced-filter-panel .tag-chip.exclude-mode.selected {
+    background: #ef4444;
+    border-color: #ef4444;
+}
+
+.category-section {
+    margin-bottom: 0.75rem;
+}
+
+.category-title {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.btn-primary {
+    background: var(--accent-blue);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-primary:hover {
+    opacity: 0.9;
+}
+
+.btn-secondary {
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-secondary:hover {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.filter-count {
+    font-size: 0.8rem;
+    color: var(--accent-blue);
+    margin-left: auto;
+}

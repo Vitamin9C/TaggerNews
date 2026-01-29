@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -121,4 +122,88 @@ class TagModel(Base):
     # Relationship to stories (many-to-many)
     stories: Mapped[list["StoryModel"]] = relationship(
         "StoryModel", secondary=story_tags, back_populates="tags"
+    )
+
+
+class AgentRunModel(Base):
+    """SQLAlchemy model for tracking agent execution history.
+
+    Run Types:
+        - 'analysis': Taxonomy health analysis
+        - 'proposal': Proposal generation run
+        - 'execution': Proposal execution run
+
+    Status:
+        - 'running': Agent currently executing
+        - 'completed': Agent finished successfully
+        - 'failed': Agent encountered an error
+    """
+
+    __tablename__ = "agent_runs"
+    __table_args__ = (Index("ix_agent_runs_status", "status"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    # Relationship to proposals
+    proposals: Mapped[list["TagProposalModel"]] = relationship(
+        "TagProposalModel", back_populates="agent_run"
+    )
+
+
+class TagProposalModel(Base):
+    """SQLAlchemy model for storing tag change proposals.
+
+    Proposal Types:
+        - 'create_tag': Create a new L2 tag
+        - 'merge_tags': Merge multiple tags into one
+        - 'split_tag': Split a tag into multiple tags
+        - 'retire_tag': Remove a tag and reassign stories
+
+    Status:
+        - 'pending': Awaiting review
+        - 'approved': Approved for execution
+        - 'rejected': Rejected by reviewer
+        - 'executed': Successfully executed
+
+    Priority:
+        - 'low': Minor optimization
+        - 'medium': Recommended change
+        - 'high': Important fix needed
+    """
+
+    __tablename__ = "tag_proposals"
+    __table_args__ = (
+        Index("ix_tag_proposals_status", "status"),
+        Index("ix_tag_proposals_agent_run", "agent_run_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_run_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    proposal_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    priority: Mapped[str] = mapped_column(String(10), default="medium", nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    data: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    affected_stories_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # Relationship to agent run
+    agent_run: Mapped["AgentRunModel"] = relationship(
+        "AgentRunModel", back_populates="proposals"
     )

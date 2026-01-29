@@ -6,7 +6,9 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from taggernews.agents.orchestrator import AgentOrchestrator, get_orchestrator
 from taggernews.infrastructure.database import get_session
+from taggernews.repositories.agent_repo import AgentRepository
 from taggernews.repositories.story_repo import (
     StoryRepository,
     SummaryRepository,
@@ -46,8 +48,22 @@ async def get_tag_repository(
     yield TagRepository(session)
 
 
+async def get_agent_repository(
+    session: SessionDep,
+) -> AsyncGenerator[AgentRepository, None]:
+    """Provide AgentRepository instance."""
+    yield AgentRepository(session)
+
+
+def get_agent_orchestrator() -> AgentOrchestrator:
+    """Provide AgentOrchestrator instance."""
+    return get_orchestrator()
+
+
 # Type aliases for commonly used dependencies
 StoryRepoDep = Annotated[StoryRepository, Depends(get_story_repository)]
 SummaryRepoDep = Annotated[SummaryRepository, Depends(get_summary_repository)]
 TagRepoDep = Annotated[TagRepository, Depends(get_tag_repository)]
 ScraperDep = Annotated[ScraperService, Depends(get_scraper_service)]
+AgentRepoDep = Annotated[AgentRepository, Depends(get_agent_repository)]
+OrchestratorDep = Annotated[AgentOrchestrator, Depends(get_agent_orchestrator)]
