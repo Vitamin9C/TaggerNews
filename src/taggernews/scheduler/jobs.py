@@ -20,10 +20,91 @@ class SchedulerService:
     def __init__(self) -> None:
         """Initialize the scheduler service."""
         self.scheduler = AsyncIOScheduler()
-        self._startup_done = False
+        self._backfill_complete = False
+
+    async def _run_backfill_job(self) -> None:
+        """Run backfill scraping (chunked for resumability).
+
+        This job runs every few minutes until backfill is complete.
+        Progress is tracked in scraper_state table.
+        """
+        if self._backfill_complete:
+            return
+
+        logger.info("Running backfill job...")
+        try:
+            async with async_session_factory() as session:
+                scraper = ScraperService(session)
+                result = await scraper.run_backfill(
+                    days=settings.scraper_backfill_days,
+                    batch_size=settings.scraper_backfill_batch_size,
+                    max_batches=settings.scraper_backfill_max_batches,
+                )
+
+                if result.get("status") == "already_completed":
+                    self._backfill_complete = True
+                    logger.info("Backfill already complete")
+                elif result.get("status") == "completed":
+                    self._backfill_complete = True
+                    scanned = result.get("items_scanned", 0)
+                    new_stories = result.get("stories_new", 0)
+                    logger.info(
+                        f"Backfill completed: {scanned} scanned, "
+                        f"{new_stories} new stories"
+                    )
+                else:
+                    scanned = result.get("items_scanned", 0)
+                    new_stories = result.get("stories_new", 0)
+                    logger.info(
+                        f"Backfill progress: {scanned} scanned, "
+                        f"{new_stories} new stories"
+                    )
+
+        except Exception as e:
+            logger.error(f"Backfill job failed: {e}", exc_info=True)
+
+    async def _run_continuous_scrape_job(self) -> None:
+        """Run continuous scraping for new stories.
+
+        Polls for new items and fetches from curated lists.
+        """
+        logger.info("Running continuous scrape job...")
+        try:
+            async with async_session_factory() as session:
+                scraper = ScraperService(session)
+                result = await scraper.run_continuous_scrape(
+                    batch_size=settings.scraper_continuous_batch_size,
+                )
+
+                if result.get("error"):
+                    logger.error(f"Continuous scrape error: {result['error']}")
+                else:
+                    gap = result.get("gap_items", 0)
+                    scanned = result.get("items_scanned", 0)
+                    new = result.get("stories_new", 0)
+                    curated = result.get("curated_new", 0)
+                    logger.info(
+                        f"Continuous scrape: gap={gap}, scanned={scanned}, "
+                        f"new={new}, curated={curated}"
+                    )
+
+                # Also generate summaries for new stories
+                summaries_count = await scraper.generate_missing_summaries(
+                    limit=settings.summarization_batch_size
+                )
+                if summaries_count > 0:
+                    logger.info(f"Generated {summaries_count} summaries")
+                await session.commit()
+
+        except Exception as e:
+            logger.error(f"Continuous scrape job failed: {e}", exc_info=True)
 
     async def _run_scrape_job(self) -> None:
-        """Execute the scrape and summarize job."""
+        """Execute legacy scrape job (for compatibility).
+
+        Note: This is kept for compatibility. The enhanced scraper
+        system (backfill + continuous) is recommended for production.
+        """
         logger.info("Starting scheduled scrape job...")
         try:
             async with async_session_factory() as session:
@@ -69,41 +150,6 @@ class SchedulerService:
         except Exception as e:
             logger.error(f"Recovery job failed: {e}")
 
-    async def _run_startup_backfill(self) -> None:
-        """Backfill stories from the past N days on startup."""
-        if self._startup_done:
-            return
-
-        days = settings.startup_backfill_days
-        logger.info(f"Starting startup backfill for past {days} days...")
-
-        try:
-            async with async_session_factory() as session:
-                scraper = ScraperService(session)
-
-                # Scrape more stories on startup for backfill
-                stories_count = await scraper.scrape_top_stories(
-                    limit=min(500, settings.top_stories_count * days)
-                )
-                logger.info(f"Backfill: scraped {stories_count} stories")
-
-                # Generate summaries in batches
-                total_summaries = 0
-                while True:
-                    count = await scraper.generate_missing_summaries(
-                        limit=settings.summarization_batch_size
-                    )
-                    if count == 0:
-                        break
-                    total_summaries += count
-                    await session.commit()
-                    logger.info(f"Backfill progress: {total_summaries} summaries")
-
-                logger.info(f"Backfill complete: {total_summaries} total summaries")
-                self._startup_done = True
-        except Exception as e:
-            logger.error(f"Startup backfill failed: {e}")
-
     async def _run_weekly_agent_analysis(self) -> None:
         """Weekly agent analysis job for tag taxonomy management."""
         logger.info("Starting weekly agent analysis...")
@@ -120,54 +166,52 @@ class SchedulerService:
 
     def start(self) -> None:
         """Start the scheduler with configured jobs."""
-        # Add hourly scrape job
+        # Enhanced backfill job - runs every N minutes until complete
+        backfill_interval = settings.scraper_backfill_interval_minutes
         self.scheduler.add_job(
-            self._run_scrape_job,
-            trigger=IntervalTrigger(hours=settings.scrape_interval_hours),
-            id="hourly_scrape",
-            name="Hourly Scrape and Summarize",
+            self._run_backfill_job,
+            trigger=IntervalTrigger(minutes=backfill_interval),
+            id="enhanced_backfill",
+            name="Enhanced Backfill Scraping",
             replace_existing=True,
         )
         logger.info(
-            f"Scheduled hourly scrape (every {settings.scrape_interval_hours}h)"
+            f"Scheduled backfill job (every {backfill_interval}m, "
+            f"{settings.scraper_backfill_days} days)"
         )
 
-        # Add recovery job for failed processing
+        # Enhanced continuous scrape job - runs every N minutes
+        continuous_interval = settings.scraper_continuous_interval_minutes
+        self.scheduler.add_job(
+            self._run_continuous_scrape_job,
+            trigger=IntervalTrigger(minutes=continuous_interval),
+            id="continuous_scrape",
+            name="Continuous Scraping",
+            replace_existing=True,
+        )
+        logger.info(f"Scheduled continuous scrape (every {continuous_interval}m)")
+
+        # Recovery job for failed processing
+        recovery_interval = settings.recovery_interval_minutes
         self.scheduler.add_job(
             self._run_recovery_job,
-            trigger=IntervalTrigger(minutes=settings.recovery_interval_minutes),
+            trigger=IntervalTrigger(minutes=recovery_interval),
             id="recovery_job",
             name="Recovery Job for Unprocessed Stories",
             replace_existing=True,
         )
-        logger.info(
-            f"Scheduled recovery job (every {settings.recovery_interval_minutes}m)"
-        )
+        logger.info(f"Scheduled recovery job (every {recovery_interval}m)")
 
-        # Add startup backfill job (runs once at startup)
-        self.scheduler.add_job(
-            self._run_startup_backfill,
-            trigger=None,  # Run immediately
-            id="startup_backfill",
-            name="Startup Backfill",
-            replace_existing=True,
-        )
-        logger.info(
-            f"Scheduled startup backfill ({settings.startup_backfill_days} days)"
-        )
-
-        # Add weekly agent analysis job
+        # Weekly agent analysis job
+        agent_interval = settings.agent_run_interval_weeks
         self.scheduler.add_job(
             self._run_weekly_agent_analysis,
-            trigger=IntervalTrigger(weeks=settings.agent_run_interval_weeks),
+            trigger=IntervalTrigger(weeks=agent_interval),
             id="weekly_agent_analysis",
             name="Weekly Tag Taxonomy Analysis",
             replace_existing=True,
         )
-        logger.info(
-            f"Scheduled weekly agent analysis "
-            f"(every {settings.agent_run_interval_weeks} week(s))"
-        )
+        logger.info(f"Scheduled weekly agent analysis (every {agent_interval} week(s))")
 
         self.scheduler.start()
         logger.info("Scheduler started")

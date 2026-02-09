@@ -190,3 +190,97 @@ class HNClient:
 
         logger.info(f"Successfully fetched {len(stories)}/{len(story_ids)} stories")
         return stories
+
+    async def get_max_item_id(self) -> int | None:
+        """Get the current maximum item ID from HN.
+
+        This is used to know the upper bound for scraping.
+        New items are assigned incrementing IDs.
+
+        Returns:
+            Maximum item ID or None if request failed
+        """
+        url = f"{self.base_url}/maxitem.json"
+        data = await self._fetch_with_retry(url)
+
+        if data is None:
+            logger.error(f"Failed to fetch max item ID from {url}")
+            return None
+
+        if not isinstance(data, int):
+            logger.warning(
+                f"Unexpected data type for max item ID: "
+                f"{type(data)}, value: {data}"
+            )
+            return None
+
+        logger.debug(f"Current HN max item ID: {data}")
+        return data
+
+    async def get_item(self, item_id: int) -> dict[str, Any] | None:
+        """Get any item by ID (story, comment, job, poll, etc.).
+
+        Returns raw dict to allow type checking by caller.
+
+        Args:
+            item_id: HN item ID
+
+        Returns:
+            Raw item dict or None if not found/deleted
+        """
+        url = f"{self.base_url}/item/{item_id}.json"
+        data = await self._fetch_with_retry(url)
+        return data
+
+    async def get_items_batch(
+        self,
+        item_ids: list[int],
+        filter_type: str = "story",
+    ) -> list[Story]:
+        """Fetch multiple items and filter by type.
+
+        Args:
+            item_ids: List of HN item IDs to fetch
+            filter_type: Only return items of this type (default: story)
+
+        Returns:
+            List of Story domain objects (only stories, not comments/jobs)
+        """
+        async def fetch_and_filter(item_id: int) -> Story | None:
+            data = await self.get_item(item_id)
+            if data is None:
+                return None
+            if data.get("type") != filter_type:
+                return None
+            if data.get("deleted") or data.get("dead"):
+                return None
+            return Story.from_hn_api(data)
+
+        tasks = [fetch_and_filter(iid) for iid in item_ids]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        stories = []
+        for result in results:
+            if isinstance(result, Story):
+                stories.append(result)
+
+        return stories
+
+    async def get_best_story_ids(self, limit: int | None = None) -> list[int]:
+        """Get best story IDs from HN.
+
+        Args:
+            limit: Maximum number of story IDs to return
+
+        Returns:
+            List of story IDs
+        """
+        url = f"{self.base_url}/beststories.json"
+        data = await self._fetch_with_retry(url)
+
+        if data is None:
+            return []
+
+        story_ids = data[:limit] if limit else data
+        logger.info(f"Fetched {len(story_ids)} best story IDs")
+        return story_ids

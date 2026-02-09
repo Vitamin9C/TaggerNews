@@ -207,3 +207,35 @@ class TagProposalModel(Base):
     agent_run: Mapped["AgentRunModel"] = relationship(
         "AgentRunModel", back_populates="proposals"
     )
+
+
+class ScraperStateModel(Base):
+    """SQLAlchemy model for tracking scraper progress.
+
+    Enables resumable scraping with two modes:
+        - 'backfill': Scans backwards from max_item_id to cover past N days
+        - 'continuous': Polls forward from last_processed_id for new items
+
+    Status:
+        - 'active': Scraping in progress
+        - 'completed': Backfill finished (continuous never completes)
+        - 'paused': Temporarily paused
+    """
+
+    __tablename__ = "scraper_state"
+    __table_args__ = (Index("ix_scraper_state_type", "state_type", unique=True),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    state_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    current_item_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    target_timestamp: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    items_processed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    stories_found: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )

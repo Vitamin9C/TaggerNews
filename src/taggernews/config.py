@@ -29,10 +29,17 @@ class Settings(BaseSettings):
     top_stories_count: int = 30
 
     # Scheduler
-    scrape_interval_hours: int = 1
-    startup_backfill_days_dev: int = 0
-    startup_backfill_days_prod: int = 21
     recovery_interval_minutes: int = 5
+
+    # Enhanced Scraper Settings
+    scraper_backfill_batch_size: int = 100  # Items per batch during backfill
+    scraper_backfill_max_batches: int = 50  # Max batches per scheduled run
+    scraper_continuous_batch_size: int = 50  # Items per batch during continuous
+    scraper_continuous_interval_minutes: int = 2  # How often to run continuous
+    scraper_backfill_interval_minutes: int = 5  # How often to run backfill chunks
+    scraper_backfill_days_dev: int = 7  # Days to backfill in development
+    scraper_backfill_days_prod: int = 30  # Days to backfill in production
+    scraper_rate_limit_delay_ms: int = 50  # Delay between batches in ms
 
     # Summarization
     summarization_model: str = "gpt-4o-mini"
@@ -56,12 +63,12 @@ class Settings(BaseSettings):
         return self.environment == "production"
 
     @property
-    def startup_backfill_days(self) -> int:
-        """Get backfill days based on environment."""
+    def scraper_backfill_days(self) -> int:
+        """Get enhanced scraper backfill days based on environment."""
         return (
-            self.startup_backfill_days_prod
+            self.scraper_backfill_days_prod
             if self.is_production
-            else self.startup_backfill_days_dev
+            else self.scraper_backfill_days_dev
         )
 
 
