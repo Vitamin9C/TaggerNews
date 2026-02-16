@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -78,19 +78,17 @@ class TaxonomyAnalyzerAgent(BaseAgent):
         """
         self.logger.info(f"Starting taxonomy analysis (window: {self.window_days} days)")
 
-        # Get tag statistics for the analysis window
+        # Get tag statistics and story count for the analysis window
         tag_stats = await self._get_tag_statistics()
+        total_stories = await self._count_stories_in_window()
+        total_tags = len(tag_stats)
 
         # Run all analyses
-        uneven = await self._analyze_distribution(tag_stats)
+        uneven = await self._analyze_distribution(tag_stats, total_stories)
         orphans = await self._find_orphan_stories()
         bloated = await self._find_bloated_categories(tag_stats)
         sparse = await self._find_sparse_tags(tag_stats)
         duplicates = await self._detect_duplicates(tag_stats)
-
-        # Get summary stats
-        total_stories = await self._count_stories_in_window()
-        total_tags = len(tag_stats)
 
         analysis = TaxonomyAnalysis(
             uneven_distribution=uneven,
@@ -116,7 +114,7 @@ class TaxonomyAnalyzerAgent(BaseAgent):
         Returns:
             List of dicts with tag info and usage counts
         """
-        cutoff_date = datetime.now() - timedelta(days=self.window_days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=self.window_days)
 
         stmt = (
             select(
@@ -162,19 +160,20 @@ class TaxonomyAnalyzerAgent(BaseAgent):
 
     async def _count_stories_in_window(self) -> int:
         """Count stories in the analysis window."""
-        cutoff_date = datetime.now() - timedelta(days=self.window_days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=self.window_days)
         stmt = select(func.count(StoryModel.id)).where(
             StoryModel.hn_created_at >= cutoff_date
         )
         result = await self.session.execute(stmt)
         return result.scalar() or 0
 
-    async def _analyze_distribution(self, tag_stats: list[dict]) -> list[dict]:
+    async def _analyze_distribution(
+        self, tag_stats: list[dict], total_stories: int
+    ) -> list[dict]:
         """Analyze L1 tag distribution for imbalances.
 
         Flags tags with >30% or <5% of stories.
         """
-        total_stories = await self._count_stories_in_window()
         if total_stories == 0:
             return []
 
@@ -198,7 +197,7 @@ class TaxonomyAnalyzerAgent(BaseAgent):
 
         Returns count of orphan stories in the analysis window.
         """
-        cutoff_date = datetime.now() - timedelta(days=self.window_days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=self.window_days)
 
         # Stories that have tags but none are L1 or L2
         stmt = text("""

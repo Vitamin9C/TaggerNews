@@ -106,14 +106,17 @@ class TaxonomyService:
         self._tag_cache: dict[str, TagModel] = {}
 
     async def get_or_create_tag(self, name: str) -> TagModel:
-        """Get existing tag or create new one with appropriate level."""
+        """Get existing tag or create new one with appropriate level.
+
+        Note: usage_count is not incremented here. Actual usage is
+        tracked via the story_tags junction table and can be computed
+        with a COUNT query when needed.
+        """
         slug = normalize_slug(name)
 
         # Check cache first
         if slug in self._tag_cache:
-            tag = self._tag_cache[slug]
-            tag.usage_count += 1
-            return tag
+            return self._tag_cache[slug]
 
         # Check database
         stmt = select(TagModel).where(TagModel.slug == slug)
@@ -121,7 +124,6 @@ class TaxonomyService:
         tag = result.scalar_one_or_none()
 
         if tag:
-            tag.usage_count += 1
             self._tag_cache[slug] = tag
             return tag
 

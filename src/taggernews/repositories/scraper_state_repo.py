@@ -1,6 +1,6 @@
 """Repository for scraper state tracking."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,7 +67,7 @@ class ScraperStateRepository:
             state_type=state_type,
             current_item_id=initial_item_id,
             status="active",
-            last_run_at=datetime.now(timezone.utc),
+            last_run_at=datetime.now(UTC),
         )
         self.session.add(state)
         await self.session.flush()
@@ -98,7 +98,7 @@ class ScraperStateRepository:
             if target_timestamp is not None:
                 existing.target_timestamp = target_timestamp
             existing.status = status
-            existing.last_run_at = datetime.now(timezone.utc)
+            existing.last_run_at = datetime.now(UTC)
             await self.session.flush()
             return existing
 
@@ -107,7 +107,7 @@ class ScraperStateRepository:
             current_item_id=current_item_id,
             target_timestamp=target_timestamp,
             status=status,
-            last_run_at=datetime.now(timezone.utc),
+            last_run_at=datetime.now(UTC),
         )
         self.session.add(state)
         await self.session.flush()
@@ -130,7 +130,7 @@ class ScraperStateRepository:
         if state:
             state.items_processed += items_processed
             state.stories_found += stories_found
-            state.last_run_at = datetime.now(timezone.utc)
+            state.last_run_at = datetime.now(UTC)
             await self.session.flush()
 
     async def get_existing_hn_ids(self, hn_ids: list[int]) -> set[int]:

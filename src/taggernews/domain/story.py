@@ -1,7 +1,7 @@
 """Story domain entity."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -30,5 +30,5 @@ class Story:
             score=data.get("score", 0),
             author=data.get("by", "unknown"),
             comment_count=data.get("descendants", 0),
-            hn_created_at=datetime.fromtimestamp(data.get("time", 0)),
+            hn_created_at=datetime.fromtimestamp(data.get("time", 0), tz=UTC),
         )

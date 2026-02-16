@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -86,14 +86,16 @@ class ScraperService:
     async def generate_missing_summaries(self, limit: int = 10) -> int:
         """Generate summaries for stories that don't have them.
 
+        Processes stories sequentially to avoid concurrent access to the
+        shared SQLAlchemy session (AsyncSession is not task-safe).
+
         Args:
             limit: Maximum stories to summarize
 
         Returns:
             Number of summaries generated
         """
-        import asyncio
-
+        from taggernews.domain.story import Story
         from taggernews.services.tag_taxonomy import TaxonomyService
 
         start_time = time.perf_counter()
@@ -108,8 +110,6 @@ class ScraperService:
             return 0
 
         # Convert models to domain objects
-        from taggernews.domain.story import Story
-
         stories = [
             Story(
                 id=story_model.id,
@@ -127,40 +127,41 @@ class ScraperService:
         # Initialize taxonomy service
         taxonomy_service = TaxonomyService(self.session)
 
-        # Process concurrently with semaphore to limit parallelism
-        semaphore = asyncio.Semaphore(settings.summarization_batch_size)
+        count = 0
+        for story in stories:
+            story_start = time.perf_counter()
 
-        async def process_story(story: Story) -> bool:
-            async with semaphore:
-                story_start = time.perf_counter()
-                result = await self.summarizer.summarize_story(story)
-                if result:
-                    summary, flat_tags = result
-                    await self.summary_repo.create(
-                        story_id=story.id or 0,
-                        text=summary.text,
-                        model=summary.model,
-                    )
-                    # Resolve flat tags using TaxonomyService
-                    story_model = await self.story_repo.get_by_id(story.id or 0)
-                    if story_model:
-                        tag_models = await taxonomy_service.resolve_tags(flat_tags)
-                        for tag in tag_models:
-                            if tag not in story_model.tags:
-                                story_model.tags.append(tag)
-                        # Mark story as processed
-                        story_model.is_summarized = True
-                        story_model.is_tagged = True
-                        logger.debug(f"Story {story.hn_id}: {len(tag_models)} tags")
-                    story_duration_ms = (time.perf_counter() - story_start) * 1000
-                    csv_logger.log(
-                        "summarize_story", story_duration_ms, 1, len(summary.text)
-                    )
-                    return True
-                return False
+            if story.id is None:
+                logger.warning(f"Story {story.hn_id} has no database ID, skipping")
+                continue
 
-        results = await asyncio.gather(*[process_story(s) for s in stories])
-        count = sum(results)
+            result = await self.summarizer.summarize_story(story)
+            if not result:
+                continue
+
+            summary, flat_tags = result
+            await self.summary_repo.create(
+                story_id=story.id,
+                text=summary.text,
+                model=summary.model,
+            )
+            # Resolve flat tags using TaxonomyService
+            story_model = await self.story_repo.get_by_id(story.id)
+            if story_model:
+                tag_models = await taxonomy_service.resolve_tags(flat_tags)
+                for tag in tag_models:
+                    if tag not in story_model.tags:
+                        story_model.tags.append(tag)
+                # Mark story as processed
+                story_model.is_summarized = True
+                story_model.is_tagged = True
+                logger.debug(f"Story {story.hn_id}: {len(tag_models)} tags")
+
+            story_duration_ms = (time.perf_counter() - story_start) * 1000
+            csv_logger.log(
+                "summarize_story", story_duration_ms, 1, len(summary.text)
+            )
+            count += 1
 
         total_duration_ms = (time.perf_counter() - start_time) * 1000
         csv_logger.log("generate_missing_summaries_total", total_duration_ms, count)
@@ -191,7 +192,7 @@ class ScraperService:
         """
         batch_size = batch_size or settings.scraper_backfill_batch_size
         max_batches = max_batches or settings.scraper_backfill_max_batches
-        target_timestamp = datetime.now(timezone.utc) - timedelta(days=days)
+        target_timestamp = datetime.now(UTC) - timedelta(days=days)
 
         try:
             # Get or resume backfill state
