@@ -1,9 +1,10 @@
 """Story repository for database operations."""
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -180,14 +181,14 @@ class StoryRepository:
         return result.scalar() or 0
 
     def get_today_range(self) -> tuple[datetime, datetime]:
-        """Get today's date range (midnight to now)."""
-        now = datetime.now()
+        """Get today's date range (midnight to now, UTC)."""
+        now = datetime.now(UTC)
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         return start, now
 
     def get_this_week_range(self) -> tuple[datetime, datetime]:
-        """Get this week's date range (Monday midnight to now)."""
-        now = datetime.now()
+        """Get this week's date range (Monday midnight to now, UTC)."""
+        now = datetime.now(UTC)
         days_since_monday = now.weekday()
         start = (now - timedelta(days=days_since_monday)).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -226,12 +227,57 @@ class StoryRepository:
             return model
 
     async def upsert_many(self, stories: list[Story]) -> list[StoryModel]:
-        """Upsert multiple stories."""
-        models = []
-        for story in stories:
-            model = await self.upsert(story)
-            models.append(model)
-        return models
+        """Bulk upsert stories using PostgreSQL ON CONFLICT.
+
+        Uses a single INSERT ... ON CONFLICT DO UPDATE for efficiency,
+        replacing the previous N+1 query pattern.
+        """
+        if not stories:
+            return []
+
+        values = [
+            {
+                "hn_id": story.hn_id,
+                "title": story.title,
+                "url": story.url,
+                "score": story.score,
+                "author": story.author,
+                "comment_count": story.comment_count,
+                "hn_created_at": story.hn_created_at,
+            }
+            for story in stories
+        ]
+
+        stmt = pg_insert(StoryModel).values(values)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["hn_id"],
+            set_={
+                "title": stmt.excluded.title,
+                "url": stmt.excluded.url,
+                "score": stmt.excluded.score,
+                "author": stmt.excluded.author,
+                "comment_count": stmt.excluded.comment_count,
+            },
+        ).returning(StoryModel.id)
+
+        result = await self.session.execute(stmt)
+        inserted_ids = [row[0] for row in result.all()]
+        await self.session.flush()
+
+        # Fetch the full models for return
+        if inserted_ids:
+            fetch_stmt = (
+                select(StoryModel)
+                .options(
+                    selectinload(StoryModel.summary),
+                    selectinload(StoryModel.tags),
+                )
+                .where(StoryModel.id.in_(inserted_ids))
+            )
+            fetch_result = await self.session.execute(fetch_stmt)
+            return list(fetch_result.scalars().all())
+
+        return []
 
     async def get_unprocessed_stories(self, limit: int = 10) -> list[StoryModel]:
         """Get stories that haven't been fully processed (tagged or summarized).
@@ -260,34 +306,15 @@ class StoryRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def list_stories_by_tag_filter(
-        self,
-        tag_filter: TagFilter,
-        offset: int = 0,
-        limit: int = 30,
-    ) -> list[StoryModel]:
-        """List stories with advanced tag filtering.
+    def _build_tag_filter_conditions(self, tag_filter: TagFilter) -> list:
+        """Build SQLAlchemy filter conditions from a TagFilter.
 
-        Args:
-            tag_filter: Structured filter with include/exclude lists
-            offset: Pagination offset
-            limit: Maximum stories to return
-
-        Returns:
-            List of matching stories ordered by score
+        Shared between list_stories_by_tag_filter and count_by_tag_filter
+        to avoid duplicating the subquery-building logic.
         """
         from sqlalchemy import exists
 
         from taggernews.infrastructure.models import story_tags
-
-        if tag_filter.is_empty():
-            return await self.list_stories(offset, limit)
-
-        # Build base query
-        stmt = (
-            select(StoryModel)
-            .options(selectinload(StoryModel.summary), selectinload(StoryModel.tags))
-        )
 
         conditions = []
 
@@ -347,7 +374,24 @@ class StoryRepository:
             )
             conditions.append(~l2_excl_subq)
 
-        # Combine all conditions with AND
+        return conditions
+
+    async def list_stories_by_tag_filter(
+        self,
+        tag_filter: TagFilter,
+        offset: int = 0,
+        limit: int = 30,
+    ) -> list[StoryModel]:
+        """List stories with advanced tag filtering."""
+        if tag_filter.is_empty():
+            return await self.list_stories(offset, limit)
+
+        stmt = (
+            select(StoryModel)
+            .options(selectinload(StoryModel.summary), selectinload(StoryModel.tags))
+        )
+
+        conditions = self._build_tag_filter_conditions(tag_filter)
         if conditions:
             stmt = stmt.where(and_(*conditions))
 
@@ -358,67 +402,14 @@ class StoryRepository:
 
     async def count_by_tag_filter(self, tag_filter: TagFilter) -> int:
         """Count stories matching a tag filter."""
-        from sqlalchemy import exists, func
-
-        from taggernews.infrastructure.models import story_tags
+        from sqlalchemy import func
 
         if tag_filter.is_empty():
             return await self.count()
 
         stmt = select(func.count(StoryModel.id))
-        conditions = []
 
-        if tag_filter.l1_include:
-            l1_subq = (
-                select(story_tags.c.story_id)
-                .join(TagModel, story_tags.c.tag_id == TagModel.id)
-                .where(TagModel.level == 1)
-                .where(TagModel.name.in_(tag_filter.l1_include))
-            )
-            conditions.append(StoryModel.id.in_(l1_subq))
-
-        if tag_filter.l2_include:
-            l2_subq = (
-                select(story_tags.c.story_id)
-                .join(TagModel, story_tags.c.tag_id == TagModel.id)
-                .where(TagModel.level == 2)
-                .where(TagModel.name.in_(tag_filter.l2_include))
-            )
-            conditions.append(StoryModel.id.in_(l2_subq))
-
-        if tag_filter.l3_include:
-            l3_subq = (
-                select(story_tags.c.story_id)
-                .join(TagModel, story_tags.c.tag_id == TagModel.id)
-                .where(TagModel.level == 3)
-                .where(TagModel.name.in_(tag_filter.l3_include))
-            )
-            conditions.append(StoryModel.id.in_(l3_subq))
-
-        if tag_filter.l1_exclude:
-            l1_excl_subq = (
-                exists(
-                    select(story_tags.c.story_id)
-                    .join(TagModel, story_tags.c.tag_id == TagModel.id)
-                    .where(story_tags.c.story_id == StoryModel.id)
-                    .where(TagModel.level == 1)
-                    .where(TagModel.name.in_(tag_filter.l1_exclude))
-                )
-            )
-            conditions.append(~l1_excl_subq)
-
-        if tag_filter.l2_exclude:
-            l2_excl_subq = (
-                exists(
-                    select(story_tags.c.story_id)
-                    .join(TagModel, story_tags.c.tag_id == TagModel.id)
-                    .where(story_tags.c.story_id == StoryModel.id)
-                    .where(TagModel.level == 2)
-                    .where(TagModel.name.in_(tag_filter.l2_exclude))
-                )
-            )
-            conditions.append(~l2_excl_subq)
-
+        conditions = self._build_tag_filter_conditions(tag_filter)
         if conditions:
             stmt = stmt.where(and_(*conditions))
 

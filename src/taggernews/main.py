@@ -7,9 +7,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from taggernews.api.dev import router as dev_router
 from taggernews.api.v1.router import router as api_router
 from taggernews.api.web.views import router as web_router
-from taggernews.api.dev import router as dev_router
 from taggernews.config import get_settings
 
 # Configure logging

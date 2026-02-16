@@ -172,12 +172,14 @@ async def filter_stories(
 
 
 def _parse_json_list(s: str | None) -> list[str]:
-    """Parse a JSON-encoded list from query parameter."""
+    """Parse a JSON-encoded list of strings from query parameter."""
     if not s:
         return []
     try:
         result = json.loads(s)
-        return result if isinstance(result, list) else []
+        if not isinstance(result, list):
+            return []
+        return [item for item in result if isinstance(item, str)]
     except json.JSONDecodeError:
         return []
 

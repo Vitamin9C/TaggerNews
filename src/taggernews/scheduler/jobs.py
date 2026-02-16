@@ -99,27 +99,6 @@ class SchedulerService:
         except Exception as e:
             logger.error(f"Continuous scrape job failed: {e}", exc_info=True)
 
-    async def _run_scrape_job(self) -> None:
-        """Execute legacy scrape job (for compatibility).
-
-        Note: This is kept for compatibility. The enhanced scraper
-        system (backfill + continuous) is recommended for production.
-        """
-        logger.info("Starting scheduled scrape job...")
-        try:
-            async with async_session_factory() as session:
-                scraper = ScraperService(session)
-                stories_count = await scraper.scrape_top_stories()
-                logger.info(f"Scraped {stories_count} stories")
-
-                summaries_count = await scraper.generate_missing_summaries(
-                    limit=settings.summarization_batch_size
-                )
-                logger.info(f"Generated {summaries_count} summaries")
-                await session.commit()
-        except Exception as e:
-            logger.error(f"Scrape job failed: {e}")
-
     async def _run_recovery_job(self) -> None:
         """Process stories that failed tagging or summarization."""
         logger.info("Starting recovery job for unprocessed stories...")
