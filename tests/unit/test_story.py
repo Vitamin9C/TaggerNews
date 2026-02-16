@@ -1,6 +1,6 @@
 """Unit tests for Story domain entity."""
 
-
+from datetime import UTC
 
 from taggernews.domain.story import Story
 
@@ -63,3 +63,15 @@ class TestStory:
 
         assert story.url is None
         assert "Ask HN" in story.title
+
+    def test_from_hn_api_datetime_is_utc(self):
+        """Test that hn_created_at is timezone-aware UTC."""
+        data = {
+            "id": 12345,
+            "time": 1700000000,
+            "type": "story",
+        }
+
+        story = Story.from_hn_api(data)
+
+        assert story.hn_created_at.tzinfo == UTC
