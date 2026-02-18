@@ -31,7 +31,7 @@
 </div>
 
 {% if offset + stories|length < total %} <div
-    hx-get="/stories/more?offset={{ offset + limit }}&limit={{ limit }}{% if active_tag %}&tag={{ active_tag }}{% endif %}{% if active_period != 'all' %}&period={{ active_period }}{% endif %}{% if date_from %}&from={{ date_from }}{% endif %}{% if date_to %}&to={{ date_to }}{% endif %}"
+    hx-get="/stories/more?offset={{ offset + limit }}&limit={{ limit }}{% if active_tag %}&tag={{ active_tag | urlencode }}{% endif %}{% if active_period != 'all' %}&period={{ active_period | urlencode }}{% endif %}{% if date_from %}&from={{ date_from | urlencode }}{% endif %}{% if date_to %}&to={{ date_to | urlencode }}{% endif %}"
     hx-trigger="revealed" hx-swap="outerHTML" class="load-more">
     <span class="loading-text">Loading more stories...</span>
     </div>

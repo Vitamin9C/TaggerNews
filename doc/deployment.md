@@ -95,6 +95,9 @@ POSTGRES_PASSWORD=YOUR_STRONG_PASSWORD
 
 # OpenAI API Key (required for summarization and tagging)
 OPENAI_API_KEY=sk-your-production-key
+
+# API Authentication (protects write endpoints like /refresh, agent approve/execute)
+API_KEY=your-random-secret-key-here
 ```
 
 **Optional** tuning (shown with defaults):

@@ -18,6 +18,10 @@ COPY static/ static/
 COPY migrations/ migrations/
 COPY alembic.ini .
 
+# Create non-root user
+RUN adduser --disabled-password --no-create-home appuser
+USER appuser
+
 # Expose port
 EXPOSE 8000
 

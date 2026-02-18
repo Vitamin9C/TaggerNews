@@ -1,8 +1,8 @@
 """Story API endpoints."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
-from taggernews.api.dependencies import ScraperDep, StoryRepoDep
+from taggernews.api.dependencies import ApiKeyDep, ScraperDep, StoryRepoDep
 from taggernews.api.v1.schemas import ScrapeResponse, StoryListResponse, StoryResponse
 
 router = APIRouter(prefix="/stories", tags=["stories"])
@@ -11,12 +11,10 @@ router = APIRouter(prefix="/stories", tags=["stories"])
 @router.get("", response_model=StoryListResponse)
 async def list_stories(
     story_repo: StoryRepoDep,
-    offset: int = 0,
-    limit: int = 30,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(30, ge=1, le=100),
 ) -> StoryListResponse:
     """List stories with pagination, ordered by score."""
-    if limit > 100:
-        limit = 100
 
     stories = await story_repo.list_stories(offset=offset, limit=limit)
     total = await story_repo.count()
@@ -45,6 +43,7 @@ async def get_story(
 @router.post("/refresh", response_model=ScrapeResponse)
 async def refresh_stories(
     scraper: ScraperDep,
+    _auth: ApiKeyDep,
 ) -> ScrapeResponse:
     """Manually trigger story refresh from HN API."""
     stories_count = await scraper.scrape_top_stories()

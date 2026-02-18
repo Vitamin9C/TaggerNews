@@ -3,10 +3,12 @@
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, Security
+from fastapi.security import APIKeyHeader
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from taggernews.agents.orchestrator import AgentOrchestrator, get_orchestrator
+from taggernews.config import get_settings
 from taggernews.infrastructure.database import get_session
 from taggernews.repositories.agent_repo import AgentRepository
 from taggernews.repositories.story_repo import (
@@ -18,6 +20,29 @@ from taggernews.services.scraper import ScraperService
 
 # Type alias for database session dependency
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+# --- API Key Authentication ---
+
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def require_api_key(
+    api_key: str | None = Security(_api_key_header),
+) -> str:
+    """Verify API key for write endpoints.
+
+    If API_KEY is not configured (empty), auth is skipped (dev mode).
+    In production, set API_KEY env var to enforce authentication.
+    """
+    settings = get_settings()
+    if not settings.api_key:
+        return "anonymous"
+    if not api_key or api_key != settings.api_key:
+        raise HTTPException(status_code=403, detail="Invalid or missing API key")
+    return api_key
+
+
+ApiKeyDep = Annotated[str, Depends(require_api_key)]
 
 
 async def get_story_repository(

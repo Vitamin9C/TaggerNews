@@ -2,17 +2,17 @@
     <h3 class="filter-title">📅 Period</h3>
     <div class="period-buttons" hx-sync="closest .date-filter:abort">
         <button class="period-btn{% if active_period == 'all' %} active{% endif %}"
-            hx-get="/stories/filter{% if active_tag %}?tag={{ active_tag }}{% endif %}" hx-target="#story-list"
+            hx-get="/stories/filter{% if active_tag %}?tag={{ active_tag | urlencode }}{% endif %}" hx-target="#story-list"
             hx-swap="innerHTML" hx-indicator=".loading-indicator">
             All
         </button>
         <button class="period-btn{% if active_period == 'today' %} active{% endif %}"
-            hx-get="/stories/filter?period=today{% if active_tag %}&tag={{ active_tag }}{% endif %}"
+            hx-get="/stories/filter?period=today{% if active_tag %}&tag={{ active_tag | urlencode }}{% endif %}"
             hx-target="#story-list" hx-swap="innerHTML" hx-indicator=".loading-indicator">
             Today
         </button>
         <button class="period-btn{% if active_period == 'week' %} active{% endif %}"
-            hx-get="/stories/filter?period=week{% if active_tag %}&tag={{ active_tag }}{% endif %}"
+            hx-get="/stories/filter?period=week{% if active_tag %}&tag={{ active_tag | urlencode }}{% endif %}"
             hx-target="#story-list" hx-swap="innerHTML" hx-indicator=".loading-indicator">
             This Week
         </button>

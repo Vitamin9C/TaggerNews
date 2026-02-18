@@ -21,9 +21,9 @@
         {% if story.tags %}
         <div class="story-tags">
             {% for tag in story.tags %}
-            <a href="/?tag={{ tag.name }}" class="tag-pill{% if active_tag == tag.name %} active{% endif %}"
-                hx-get="/stories/filter?tag={{ tag.name }}" hx-target="#story-list" hx-swap="innerHTML"
-                hx-push-url="/?tag={{ tag.name }}">{{ tag.name }}</a>
+            <a href="/?tag={{ tag.name | urlencode }}" class="tag-pill{% if active_tag == tag.name %} active{% endif %}"
+                hx-get="/stories/filter?tag={{ tag.name | urlencode }}" hx-target="#story-list" hx-swap="innerHTML"
+                hx-push-url="/?tag={{ tag.name | urlencode }}">{{ tag.name }}</a>
             {% endfor %}
         </div>
         {% endif %}

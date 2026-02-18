@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     # Dev-only: Manual tag extension (for testing L2/L3 tag creation)
     enable_manual_tag_extension: bool = False
 
+    # API Authentication (empty = no auth required, set in production)
+    api_key: str = ""
+
     # Agent Configuration
     agent_analysis_window_days: int = 30
     agent_min_tag_usage: int = 3

@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 
-from taggernews.api.dependencies import AgentRepoDep, OrchestratorDep
+from taggernews.api.dependencies import AgentRepoDep, ApiKeyDep, OrchestratorDep
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -127,6 +127,7 @@ async def get_proposal(
 async def approve_proposal(
     proposal_id: int,
     agent_repo: AgentRepoDep,
+    _auth: ApiKeyDep,
     reviewer: str = Query("admin"),
 ) -> dict:
     """Approve a proposal for execution."""
@@ -144,6 +145,7 @@ async def approve_proposal(
 async def reject_proposal(
     proposal_id: int,
     agent_repo: AgentRepoDep,
+    _auth: ApiKeyDep,
     reviewer: str = Query("admin"),
 ) -> dict:
     """Reject a proposal."""
@@ -161,6 +163,7 @@ async def reject_proposal(
 async def execute_proposal(
     proposal_id: int,
     orchestrator: OrchestratorDep,
+    _auth: ApiKeyDep,
     dry_run: bool = Query(False),
 ) -> ExecuteResponse:
     """Execute an approved proposal."""
@@ -175,6 +178,7 @@ async def execute_proposal(
 @router.post("/run", response_model=RunTriggerResponse)
 async def trigger_agent_run(
     orchestrator: OrchestratorDep,
+    _auth: ApiKeyDep,
     mode: str = Query("proposal", pattern="^(analysis|proposal|auto-apply)$"),
 ) -> RunTriggerResponse:
     """Manually trigger an agent run."""
