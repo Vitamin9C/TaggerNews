@@ -1,7 +1,7 @@
 """HTMX-powered web views."""
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -21,7 +21,7 @@ def parse_date(date_str: str | None) -> datetime | None:
     if not date_str:
         return None
     try:
-        return datetime.strptime(date_str, "%Y-%m-%d")
+        return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=UTC)
     except ValueError:
         return None
 

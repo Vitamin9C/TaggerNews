@@ -2,7 +2,7 @@
 
 import csv
 import threading
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -50,7 +50,7 @@ class CSVLogger:
             with open(self.filepath, "a", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow([
-                    datetime.now().isoformat(),
+                    datetime.now(UTC).isoformat(),
                     operation,
                     f"{duration_ms:.2f}",
                     item_count,

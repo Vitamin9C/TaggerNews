@@ -39,6 +39,8 @@ class StoryModel(Base):
     __tablename__ = "stories"
     __table_args__ = (
         Index("ix_stories_processing_status", "is_tagged", "is_summarized"),
+        Index("ix_stories_score", "score"),
+        Index("ix_stories_hn_created_at", "hn_created_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

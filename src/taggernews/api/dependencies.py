@@ -1,5 +1,6 @@
 """FastAPI dependency injection providers."""
 
+import secrets
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
@@ -37,7 +38,7 @@ async def require_api_key(
     settings = get_settings()
     if not settings.api_key:
         return "anonymous"
-    if not api_key or api_key != settings.api_key:
+    if not api_key or not secrets.compare_digest(api_key, settings.api_key):
         raise HTTPException(status_code=403, detail="Invalid or missing API key")
     return api_key
 

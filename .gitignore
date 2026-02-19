@@ -60,6 +60,9 @@ Thumbs.db
 # Agent
 .agent/
 
+# Fordex workflow data
+.fordex-workflow/
+
 # internal documents
 lessons_learned/
 

@@ -2,7 +2,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,7 +52,7 @@ class BaseAgent(ABC):
         run = AgentRunModel(
             run_type=run_type,
             status="running",
-            started_at=datetime.now(),
+            started_at=datetime.now(UTC),
         )
         self.session.add(run)
         await self.session.flush()
@@ -69,7 +69,7 @@ class BaseAgent(ABC):
             result_data: Results from the agent execution
         """
         run.status = "completed"
-        run.completed_at = datetime.now()
+        run.completed_at = datetime.now(UTC)
         run.result_data = result_data
         self.logger.info(f"Completed agent run: id={run.id}")
 
@@ -81,6 +81,6 @@ class BaseAgent(ABC):
             error_message: Description of the failure
         """
         run.status = "failed"
-        run.completed_at = datetime.now()
+        run.completed_at = datetime.now(UTC)
         run.error_message = error_message
         self.logger.error(f"Failed agent run: id={run.id}, error={error_message}")

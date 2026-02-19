@@ -69,6 +69,7 @@ class ExecuteResponse(BaseModel):
 @router.get("/runs/latest", response_model=AgentRunResponse)
 async def get_latest_run(
     agent_repo: AgentRepoDep,
+    _auth: ApiKeyDep,
     run_type: str | None = Query(None, pattern="^(analysis|proposal|auto-apply)$"),
 ) -> AgentRunResponse:
     """Get the most recent agent run."""
@@ -81,6 +82,7 @@ async def get_latest_run(
 @router.get("/runs", response_model=list[AgentRunResponse])
 async def list_runs(
     agent_repo: AgentRepoDep,
+    _auth: ApiKeyDep,
     run_type: str | None = Query(None, pattern="^(analysis|proposal|auto-apply)$"),
     status: str | None = Query(None, pattern="^(running|completed|failed)$"),
     limit: int = Query(20, ge=1, le=100),
@@ -91,7 +93,7 @@ async def list_runs(
 
 
 @router.get("/runs/{run_id}", response_model=AgentRunResponse)
-async def get_run(run_id: int, agent_repo: AgentRepoDep) -> AgentRunResponse:
+async def get_run(run_id: int, agent_repo: AgentRepoDep, _auth: ApiKeyDep) -> AgentRunResponse:
     """Get a specific agent run by ID."""
     run = await agent_repo.get_run(run_id)
     if not run:
@@ -102,6 +104,7 @@ async def get_run(run_id: int, agent_repo: AgentRepoDep) -> AgentRunResponse:
 @router.get("/proposals", response_model=list[ProposalResponse])
 async def list_proposals(
     agent_repo: AgentRepoDep,
+    _auth: ApiKeyDep,
     status: str | None = Query(
         None, pattern="^(pending|approved|rejected|executed)$"
     ),
@@ -112,9 +115,16 @@ async def list_proposals(
     return [ProposalResponse.model_validate(p) for p in proposals]
 
 
+@router.get("/proposals/pending/count")
+async def count_pending_proposals(agent_repo: AgentRepoDep, _auth: ApiKeyDep) -> dict:
+    """Get the count of pending proposals."""
+    count = await agent_repo.count_pending_proposals()
+    return {"pending_count": count}
+
+
 @router.get("/proposals/{proposal_id}", response_model=ProposalResponse)
 async def get_proposal(
-    proposal_id: int, agent_repo: AgentRepoDep
+    proposal_id: int, agent_repo: AgentRepoDep, _auth: ApiKeyDep
 ) -> ProposalResponse:
     """Get a specific proposal by ID."""
     proposal = await agent_repo.get_proposal(proposal_id)
@@ -190,10 +200,3 @@ async def trigger_agent_run(
         auto_approved=result.get("auto_approved", 0),
         summary=result.get("summary", ""),
     )
-
-
-@router.get("/proposals/pending/count")
-async def count_pending_proposals(agent_repo: AgentRepoDep) -> dict:
-    """Get the count of pending proposals."""
-    count = await agent_repo.count_pending_proposals()
-    return {"pending_count": count}

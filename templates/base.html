@@ -7,11 +7,16 @@
     <meta name="description" content="TaggerNews - A Modern Hacker News Aggregator with AI-Powered Summaries">
     <title>{% block title %}TaggerNews{% endblock %}</title>
     <link rel="stylesheet" href="/static/css/styles.css">
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"
+        integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC"
+        crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"
+        integrity="sha384-l1fmpLU0DFScAgJEJPMFPMqBr41dT/GrDEBSFODmgMgN9dQoyBXdNMd2yeXe/r7K"
+        crossorigin="anonymous"></script>
 </head>
 
 <body>
+    <a href="#main-content" class="skip-link">Skip to content</a>
     <header class="header">
         <div class="container">
             <h1 class="logo"><a href="/">🏷️ TaggerNews</a></h1>
@@ -21,20 +26,35 @@
     </header>
 
     <div class="main-layout">
-        <aside class="sidebar" id="tag-sidebar">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeMobileSidebar()"></div>
+        <aside class="sidebar" id="tag-sidebar" aria-label="Tag filters">
             {% block sidebar %}
             {% include "partials/tag_sidebar.html" %}
             {% endblock %}
         </aside>
 
-        <main class="main-content">
+        <main class="main-content" id="main-content">
+            <button class="mobile-filter-toggle" onclick="openMobileSidebar()" aria-label="Open filters">
+                Filters &amp; Tags
+            </button>
             {% block content %}{% endblock %}
         </main>
     </div>
 
+    <script>
+    function openMobileSidebar() {
+        document.getElementById('tag-sidebar').classList.add('mobile-open');
+        document.getElementById('sidebar-overlay').classList.add('active');
+    }
+    function closeMobileSidebar() {
+        document.getElementById('tag-sidebar').classList.remove('mobile-open');
+        document.getElementById('sidebar-overlay').classList.remove('active');
+    }
+    </script>
+
     <footer class="footer">
         <div class="container">
-            <p>Built with FastAPI + HTMX | Data from <a href="https://news.ycombinator.com" target="_blank">Hacker
+            <p>Built with FastAPI + HTMX | Data from <a href="https://news.ycombinator.com" target="_blank" rel="noopener noreferrer">Hacker
                     News</a></p>
         </div>
     </footer>

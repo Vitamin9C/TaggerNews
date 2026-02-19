@@ -1,6 +1,6 @@
 """Repository for agent runs and tag proposals."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,7 +30,7 @@ class AgentRepository:
         run = AgentRunModel(
             run_type=run_type,
             status="running",
-            started_at=datetime.now(),
+            started_at=datetime.now(UTC),
         )
         self.session.add(run)
         await self.session.flush()
@@ -48,7 +48,7 @@ class AgentRepository:
         run = result.scalar_one_or_none()
         if run:
             run.status = "completed"
-            run.completed_at = datetime.now()
+            run.completed_at = datetime.now(UTC)
             run.result_data = result_data
 
     async def fail_run(self, run_id: int, error: str) -> None:
@@ -63,7 +63,7 @@ class AgentRepository:
         run = result.scalar_one_or_none()
         if run:
             run.status = "failed"
-            run.completed_at = datetime.now()
+            run.completed_at = datetime.now(UTC)
             run.error_message = error
 
     async def get_run(self, run_id: int) -> AgentRunModel | None:
@@ -239,7 +239,7 @@ class AgentRepository:
         proposal = result.scalar_one_or_none()
         if proposal:
             proposal.status = "approved"
-            proposal.reviewed_at = datetime.now()
+            proposal.reviewed_at = datetime.now(UTC)
             proposal.reviewed_by = reviewer
 
     async def reject_proposal(self, proposal_id: int, reviewer: str) -> None:
@@ -254,7 +254,7 @@ class AgentRepository:
         proposal = result.scalar_one_or_none()
         if proposal:
             proposal.status = "rejected"
-            proposal.reviewed_at = datetime.now()
+            proposal.reviewed_at = datetime.now(UTC)
             proposal.reviewed_by = reviewer
 
     async def mark_proposal_executed(self, proposal_id: int) -> None:
@@ -268,7 +268,7 @@ class AgentRepository:
         proposal = result.scalar_one_or_none()
         if proposal:
             proposal.status = "executed"
-            proposal.executed_at = datetime.now()
+            proposal.executed_at = datetime.now(UTC)
 
     async def count_pending_proposals(self) -> int:
         """Count the number of pending proposals.

@@ -12,11 +12,7 @@
 {% block content %}
 <div class="stories-header">
     <h2>Top Stories</h2>
-    <button class="refresh-btn" hx-post="/api/v1/stories/refresh" hx-swap="none" hx-indicator=".refresh-spinner"
-        onclick="this.classList.add('loading'); setTimeout(() => location.reload(), 2000);">
-        <span class="refresh-spinner htmx-indicator">⏳</span>
-        <span>🔄 Refresh</span>
-    </button>
+    <span class="info-text" style="font-size:0.8rem;color:var(--text-muted);">Auto-refreshes via scheduler</span>
 </div>
 
 <div class="info-bar">

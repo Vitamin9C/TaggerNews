@@ -195,37 +195,6 @@ class StoryRepository:
         )
         return start, now
 
-    async def upsert(self, story: Story) -> StoryModel:
-        """Insert or update a story.
-
-        If story with same hn_id exists, update it. Otherwise, create new.
-        """
-        existing = await self.get_by_hn_id(story.hn_id)
-
-        if existing:
-            # Update existing story
-            existing.title = story.title
-            existing.url = story.url
-            existing.score = story.score
-            existing.author = story.author
-            existing.comment_count = story.comment_count
-            await self.session.flush()
-            return existing
-        else:
-            # Create new story
-            model = StoryModel(
-                hn_id=story.hn_id,
-                title=story.title,
-                url=story.url,
-                score=story.score,
-                author=story.author,
-                comment_count=story.comment_count,
-                hn_created_at=story.hn_created_at,
-            )
-            self.session.add(model)
-            await self.session.flush()
-            return model
-
     async def upsert_many(self, stories: list[Story]) -> list[StoryModel]:
         """Bulk upsert stories using PostgreSQL ON CONFLICT.
 

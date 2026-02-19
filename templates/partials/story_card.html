@@ -6,7 +6,7 @@
     <div class="story-content">
         <h3 class="story-title">
             {% if story.url %}
-            <a href="{{ story.url }}" target="_blank" rel="noopener">{{ story.title }}</a>
+            <a href="{{ story.url }}" target="_blank" rel="noopener noreferrer">{{ story.title }}</a>
             {% else %}
             <span>{{ story.title }}</span>
             {% endif %}

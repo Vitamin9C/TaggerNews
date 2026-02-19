@@ -8,7 +8,8 @@
     <!-- All Stories -->
     <a href="/" class="tag-pill tag-all{% if not active_tag %} active{% endif %}"
         hx-get="/stories/filter{% if active_period != 'all' %}?period={{ active_period }}{% endif %}"
-        hx-target="#story-list" hx-swap="innerHTML">
+        hx-target="#story-list" hx-swap="innerHTML"
+        hx-push-url="/">
         All Stories
     </a>
 
@@ -20,7 +21,8 @@
             {% for tag in tags_by_level[1] %}
             <a href="/?tag={{ tag.name | urlencode }}" class="tag-pill tag-l1{% if active_tag == tag.name %} active{% endif %}"
                 hx-get="/stories/filter?tag={{ tag.name | urlencode }}{% if active_period != 'all' %}&period={{ active_period }}{% endif %}"
-                hx-target="#story-list" hx-swap="innerHTML">
+                hx-target="#story-list" hx-swap="innerHTML"
+                hx-push-url="/?tag={{ tag.name | urlencode }}">
                 {{ tag.name }}
                 {% if tag.count > 0 %}<span class="tag-count">{{ tag.count }}</span>{% endif %}
             </a>
@@ -37,7 +39,8 @@
             {% for tag in tags_by_level[2] %}
             <a href="/?tag={{ tag.name | urlencode }}" class="tag-pill tag-l2{% if active_tag == tag.name %} active{% endif %}"
                 hx-get="/stories/filter?tag={{ tag.name | urlencode }}{% if active_period != 'all' %}&period={{ active_period }}{% endif %}"
-                hx-target="#story-list" hx-swap="innerHTML">
+                hx-target="#story-list" hx-swap="innerHTML"
+                hx-push-url="/?tag={{ tag.name | urlencode }}">
                 {{ tag.name }}
                 {% if tag.count > 0 %}<span class="tag-count">{{ tag.count }}</span>{% endif %}
             </a>
@@ -54,7 +57,8 @@
             {% for tag in tags_by_level[3][:20] %}
             <a href="/?tag={{ tag.name | urlencode }}" class="tag-pill tag-l3{% if active_tag == tag.name %} active{% endif %}"
                 hx-get="/stories/filter?tag={{ tag.name | urlencode }}{% if active_period != 'all' %}&period={{ active_period }}{% endif %}"
-                hx-target="#story-list" hx-swap="innerHTML">
+                hx-target="#story-list" hx-swap="innerHTML"
+                hx-push-url="/?tag={{ tag.name | urlencode }}">
                 {{ tag.name }}
                 {% if tag.count > 0 %}<span class="tag-count">{{ tag.count }}</span>{% endif %}
             </a>
