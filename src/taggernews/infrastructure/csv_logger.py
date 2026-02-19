@@ -17,11 +17,18 @@ class CSVLogger:
         """
         self.filepath = Path(filepath)
         self._lock = threading.Lock()
-        self._ensure_directory()
+        self._initialized = False
 
     def _ensure_directory(self) -> None:
-        """Ensure the parent directory exists."""
-        self.filepath.parent.mkdir(parents=True, exist_ok=True)
+        """Ensure the parent directory exists, falling back to /tmp if not writable."""
+        if self._initialized:
+            return
+        try:
+            self.filepath.parent.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            self.filepath = Path("/tmp") / self.filepath
+            self.filepath.parent.mkdir(parents=True, exist_ok=True)
+        self._initialized = True
 
     def _write_header_if_needed(self) -> None:
         """Write CSV header if file doesn't exist or is empty."""
@@ -46,6 +53,7 @@ class CSVLogger:
             tokens: Number of tokens used (optional)
         """
         with self._lock:
+            self._ensure_directory()
             self._write_header_if_needed()
             with open(self.filepath, "a", newline="") as f:
                 writer = csv.writer(f)

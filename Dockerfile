@@ -14,14 +14,14 @@ COPY src/ src/
 RUN pip install --no-cache-dir .                        # now install the actual package
 
 # Copy application code
-COPY src/ src/
 COPY templates/ templates/
 COPY static/ static/
 COPY migrations/ migrations/
 COPY alembic.ini .
 
-# Create non-root user
-RUN adduser --disabled-password --no-create-home appuser
+# Create non-root user and writable benchmarking dir
+RUN adduser --disabled-password --no-create-home appuser \
+    && mkdir -p /app/benchmarking && chown appuser:appuser /app/benchmarking
 USER appuser
 
 # Expose port
