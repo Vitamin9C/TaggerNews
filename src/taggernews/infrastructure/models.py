@@ -52,7 +52,7 @@ class StoryModel(Base):
     score: Mapped[int] = mapped_column(Integer, default=0)
     author: Mapped[str] = mapped_column(String(100), nullable=False)
     comment_count: Mapped[int] = mapped_column(Integer, default=0)
-    hn_created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    hn_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
@@ -147,8 +147,8 @@ class AgentRunModel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     run_type: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
-    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     result_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -201,9 +201,9 @@ class TagProposalModel(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
-    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reviewed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    executed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationship to agent run
     agent_run: Mapped["AgentRunModel"] = relationship(
@@ -230,11 +230,11 @@ class ScraperStateModel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     state_type: Mapped[str] = mapped_column(String(20), nullable=False)
     current_item_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    target_timestamp: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    target_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
     items_processed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     stories_found: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    last_run_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
